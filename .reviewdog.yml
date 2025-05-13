@@ -1,0 +1,15 @@
+# reviewdog.yml
+
+runner:
+  govet:
+    cmd: go vet $(go list ./pkg/...)
+    format: govet
+    level: warning
+  gosec:
+    cmd: gosec -quiet -no-fail -fmt golint ./pkg/...
+    format: golint
+    level: warning
+  # staticcheck:
+  #   cmd: staticcheck -fail none $(go list ./pkg/...)
+  #   errorformat:
+  #     - "%f:%l:%c: %m"

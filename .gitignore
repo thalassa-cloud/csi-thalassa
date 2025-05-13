@@ -1,0 +1,9 @@
+cmd/thalassa-csi-plugin/thalassa-csi-plugin
+.idea/
+*.sedbak
+.DS_Store
+
+localdev/
+bin/
+
+.vscode/

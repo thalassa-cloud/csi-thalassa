@@ -1,0 +1,88 @@
+version: 2
+
+builds:
+  - id: "csi-thalassa-plugin"
+    main: cmd/thalassa-csi-plugin/main.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+dockers:
+  - image_templates: ["ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-amd64"]
+    use: buildx
+    dockerfile: Dockerfile
+    goos: linux
+    goarch: amd64
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.url=https://github.com/thalassa-cloud/{{ .ProjectName }}"
+      - "--label=org.opencontainers.image.source=https://github.com/thalassa-cloud/{{ .ProjectName }}"
+  - image_templates: ["ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-arm64v8"]
+    use: buildx
+    dockerfile: Dockerfile
+    goos: linux
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.url=https://github.com/thalassa-cloud/{{ .ProjectName }}"
+      - "--label=org.opencontainers.image.source=https://github.com/thalassa-cloud/{{ .ProjectName }}"
+
+docker_manifests:
+  - name_template: "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-arm64v8"
+  - name_template: "ghcr.io/thalassa-cloud/{{ .ProjectName }}:v{{ .Version }}"
+    image_templates:
+      - "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-amd64"
+      - "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-arm64v8"
+
+before:
+  hooks:
+    - go mod tidy
+
+dist: ./bin
+# Documentation: https://goreleaser.com/customization/changelog/
+changelog:
+  sort: asc
+  groups:
+    - title: 'Features'
+      regexp: '^feat(\(.+\))?:'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^fix(\(.+\))?:'
+      order: 1
+    - title: 'Breaking Changes'
+      regexp: '^feat(\(.+\))?!:|^fix(\(.+\))?!:'
+      order: 2
+    - title: 'Documentation'
+      regexp: '^docs(\(.+\))?:'
+      order: 3
+    - title: 'Refactoring'
+      regexp: '^refactor(\(.+\))?:'
+      order: 4
+    - title: 'Testing'
+      regexp: '^test(\(.+\))?:'
+      order: 5
+    - title: 'Dependencies'
+      regexp: '^chore\(deps\):'
+      order: 6
+    - title: 'Chores'
+      regexp: '^chore(\(.+\))?:'
+      order: 7
+  filters:
+    exclude:
+      - '^Merge branch'
