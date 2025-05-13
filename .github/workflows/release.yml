@@ -18,6 +18,8 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
         with:
