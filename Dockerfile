@@ -23,8 +23,7 @@ RUN apk add --no-cache ca-certificates \
                        xfsprogs-extra \
                        blkid \
                        e2fsprogs-extra \
-                       cryptsetup && \
-    update-ca-certificates
+                       cryptsetup
 
 ADD csi-thalassa /bin/
 
