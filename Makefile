@@ -14,13 +14,13 @@ LDFLAGS = -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUI
 compile: build
 
 linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=${GOARCH} go build  -ldflags "${LDFLAGS}" -o ./bin/${BINARY}_linux_${GOARCH}/${BINARY} . ;
+	CGO_ENABLED=0 GOOS=linux GOARCH=${GOARCH} go build  -ldflags "${LDFLAGS}" -o ./bin/${BINARY}_linux_${GOARCH}/${BINARY} ./cmd/thalassa-csi-plugin/ ;
 
 darwin:
-	CGO_ENABLED=0 GOOS=darwin GOARCH=${GOARCH} go build -ldflags "${LDFLAGS}" -o ./bin/${BINARY}_darwin_${GOARCH}/${BINARY} . ;
+	CGO_ENABLED=0 GOOS=darwin GOARCH=${GOARCH} go build -ldflags "${LDFLAGS}" -o ./bin/${BINARY}_darwin_${GOARCH}/${BINARY} ./cmd/thalassa-csi-plugin/ ;
 
 build:
-	CGO_ENABLED=0 go build -ldflags "${LDFLAGS}" -o ./bin/${BINARY} . ;
+	CGO_ENABLED=0 go build -ldflags "${LDFLAGS}" -o ./bin/${BINARY} ./cmd/thalassa-csi-plugin/ ;
 
 snapshot:
 	goreleaser release --clean --snapshot --skip=validate
