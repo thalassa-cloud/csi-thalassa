@@ -50,6 +50,17 @@ docker_manifests:
       - "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-amd64"
       - "ghcr.io/thalassa-cloud/{{ .ProjectName }}:{{ .Version }}-arm64v8"
 
+docker_signs:
+  - cmd: cosign
+    artifacts: manifests
+    args:
+      - "sign"
+      - "${artifact}"
+      - "--yes"
+
+sboms:
+  - artifacts: archive
+
 before:
   hooks:
     - go mod tidy
