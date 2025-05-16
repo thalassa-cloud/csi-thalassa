@@ -100,16 +100,19 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	volumeTypeIdentity := ""
-	for _, volumeType := range volumeTypes {
-		if volumeType.Identity == volumeTypeParam || strings.EqualFold(volumeType.Name, volumeTypeParam) {
-			volumeTypeIdentity = volumeType.Identity
-			break
-		}
+	volumeTypeIdentity, err := getVolumeTypeByFilters(volumeTypes,
+		func(volumeType iaas.VolumeType) bool {
+			return volumeType.Identity == volumeTypeParam
+		},
+		func(volumeType iaas.VolumeType) bool {
+			return strings.EqualFold(volumeType.Name, volumeTypeParam)
+		},
+	)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
 	}
-
 	if volumeTypeIdentity == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume type: %q", volumeTypeParam)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid volume type: %q: volume type not found", volumeTypeParam)
 	}
 
 	volumeReq := iaas.CreateVolume{
