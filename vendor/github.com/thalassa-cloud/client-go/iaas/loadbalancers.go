@@ -12,9 +12,16 @@ const (
 )
 
 // ListLoadbalancers lists all loadbalancers for a given organisation.
-func (c *Client) ListLoadbalancers(ctx context.Context) ([]VpcLoadbalancer, error) {
+func (c *Client) ListLoadbalancers(ctx context.Context, listRequest ListLoadbalancersRequest) ([]VpcLoadbalancer, error) {
 	loadbalancers := []VpcLoadbalancer{}
 	req := c.R().SetResult(&loadbalancers)
+
+	if listRequest.Vpc != nil && *listRequest.Vpc != "" {
+		req = req.SetQueryParam("vpc", *listRequest.Vpc)
+	}
+	if listRequest.Subnet != nil && *listRequest.Subnet != "" {
+		req = req.SetQueryParam("subnet", *listRequest.Subnet)
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, LoadbalancerEndpoint)
 	if err != nil {
@@ -28,10 +35,14 @@ func (c *Client) ListLoadbalancers(ctx context.Context) ([]VpcLoadbalancer, erro
 }
 
 // GetLoadbalancer retrieves a specific loadbalancer by its identity.
-func (c *Client) GetLoadbalancer(ctx context.Context, identity string) (*VpcLoadbalancer, error) {
+func (c *Client) GetLoadbalancer(ctx context.Context, getRequest GetLoadbalancerRequest) (*VpcLoadbalancer, error) {
+	if getRequest.Identity == "" {
+		return nil, fmt.Errorf("identity is required")
+	}
+
 	var loadbalancer *VpcLoadbalancer
 	req := c.R().SetResult(&loadbalancer)
-	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, identity))
+	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, getRequest.Identity))
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +54,13 @@ func (c *Client) GetLoadbalancer(ctx context.Context, identity string) (*VpcLoad
 
 // CreateLoadbalancer creates a new loadbalancer.
 func (c *Client) CreateLoadbalancer(ctx context.Context, create CreateLoadbalancer) (*VpcLoadbalancer, error) {
+	if create.Subnet == "" {
+		return nil, fmt.Errorf("subnet is required")
+	}
+	if create.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
 	var loadbalancer *VpcLoadbalancer
 	req := c.R().
 		SetBody(create).SetResult(&loadbalancer)
@@ -58,12 +76,16 @@ func (c *Client) CreateLoadbalancer(ctx context.Context, create CreateLoadbalanc
 }
 
 // UpdateLoadbalancer updates an existing loadbalancer.
-func (c *Client) UpdateLoadbalancer(ctx context.Context, identity string, update UpdateLoadbalancer) (*VpcLoadbalancer, error) {
+func (c *Client) UpdateLoadbalancer(ctx context.Context, update UpdateLoadbalancer) (*VpcLoadbalancer, error) {
+	if update.Identity == "" {
+		return nil, fmt.Errorf("identity is required")
+	}
+
 	var loadbalancer *VpcLoadbalancer
 	req := c.R().
 		SetBody(update).SetResult(&loadbalancer)
 
-	resp, err := c.Do(ctx, req, client.PUT, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, identity))
+	resp, err := c.Do(ctx, req, client.PUT, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, update.Identity))
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +96,10 @@ func (c *Client) UpdateLoadbalancer(ctx context.Context, identity string, update
 }
 
 // DeleteLoadbalancer deletes a specific loadbalancer by its identity.
-func (c *Client) DeleteLoadbalancer(ctx context.Context, identity string) error {
+func (c *Client) DeleteLoadbalancer(ctx context.Context, deleteRequest DeleteLoadbalancerRequest) error {
 	req := c.R()
 
-	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, identity))
+	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, deleteRequest.Identity))
 	if err != nil {
 		return err
 	}
@@ -85,4 +107,55 @@ func (c *Client) DeleteLoadbalancer(ctx context.Context, identity string) error 
 		return err
 	}
 	return nil
+}
+
+type ListLoadbalancersRequest struct {
+	Vpc    *string `json:"vpc,omitempty"`
+	Subnet *string `json:"subnet,omitempty"`
+	Labels Labels  `json:"labels,omitempty"`
+}
+
+type GetLoadbalancerRequest struct {
+	Identity string `json:"identity"`
+}
+
+type CreateLoadbalancer struct {
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Labels      Labels      `json:"labels,omitempty"`
+	Annotations Annotations `json:"annotations,omitempty"`
+
+	// Subnet is the subnet in which the loadbalancer will be deployed.
+	Subnet string `json:"subnet"`
+
+	// InternalLoadbalancer is a flag that indicates whether the loadbalancer should be an internal loadbalancer.
+	// If true, the loadbalancer will be an internal loadbalancer and will not be accessible from the public internet.
+	// It will not be assigned a public IP address, and instead will be assigned a (private) IP address from the subnet.
+	InternalLoadbalancer bool `json:"internalLoadbalancer"`
+
+	// DeleteProtection is a flag that indicates whether the loadbalancer should be protected from deletion.
+	// Meaning delete protection will require to be disabled explicitly before the loadbalancer can be deleted.
+	DeleteProtection bool `json:"deleteProtection"`
+
+	// Listeners is a list of listeners that will be created on the loadbalancer during creation.
+	Listeners []CreateListener `json:"listeners"`
+
+	// SecurityGroupAttachments is a list of security group identities that will be attached to the loadbalancer.
+	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
+}
+
+type UpdateLoadbalancer struct {
+	Name             string      `json:"name"`
+	Identity         string      `json:"identity"`
+	Description      string      `json:"description"`
+	Labels           Labels      `json:"labels,omitempty"`
+	Annotations      Annotations `json:"annotations,omitempty"`
+	DeleteProtection bool        `json:"deleteProtection"`
+
+	// SecurityGroupAttachments is a list of security group identities that will be attached to the loadbalancer.
+	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
+}
+
+type DeleteLoadbalancerRequest struct {
+	Identity string `json:"identity"`
 }

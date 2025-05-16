@@ -3,16 +3,21 @@ package iaas
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
 // ListListeners lists all listeners for a specific loadbalancer.
-func (c *Client) ListListeners(ctx context.Context, loadbalancerID string) ([]VpcLoadbalancerListener, error) {
+func (c *Client) ListListeners(ctx context.Context, listRequest ListLoadbalancerListenersRequest) ([]VpcLoadbalancerListener, error) {
+	if listRequest.Loadbalancer == "" {
+		return nil, fmt.Errorf("loadbalancer is required")
+	}
+
 	listeners := []VpcLoadbalancerListener{}
 	req := c.R().SetResult(&listeners)
 
-	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s/listeners", LoadbalancerEndpoint, loadbalancerID))
+	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s/listeners", LoadbalancerEndpoint, listRequest.Loadbalancer))
 	if err != nil {
 		return nil, err
 	}
@@ -24,10 +29,17 @@ func (c *Client) ListListeners(ctx context.Context, loadbalancerID string) ([]Vp
 }
 
 // GetListener retrieves a specific loadbalancer listener by its identity.
-func (c *Client) GetListener(ctx context.Context, loadbalancerID string, listenerID string) (*VpcLoadbalancerListener, error) {
+func (c *Client) GetListener(ctx context.Context, getRequest GetLoadbalancerListenerRequest) (*VpcLoadbalancerListener, error) {
+	if getRequest.Loadbalancer == "" {
+		return nil, fmt.Errorf("loadbalancer is required")
+	}
+	if getRequest.Listener == "" {
+		return nil, fmt.Errorf("listener is required")
+	}
+
 	var listener *VpcLoadbalancerListener
 	req := c.R().SetResult(&listener)
-	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s/listeners/%s", LoadbalancerEndpoint, loadbalancerID, listenerID))
+	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s/listeners/%s", LoadbalancerEndpoint, getRequest.Loadbalancer, getRequest.Listener))
 	if err != nil {
 		return nil, err
 	}
@@ -81,4 +93,52 @@ func (c *Client) DeleteListener(ctx context.Context, loadbalancerID string, list
 		return err
 	}
 	return nil
+}
+
+type VpcLoadbalancerListener struct {
+	Identity      string    `json:"identity"`
+	Name          string    `json:"name"`
+	Slug          string    `json:"slug"`
+	Description   string    `json:"description"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	ObjectVersion int       `json:"objectVersion"`
+
+	Port           int                         `json:"port"`
+	Protocol       LoadbalancerProtocol        `json:"protocol"`
+	TargetGroup    *VpcLoadbalancerTargetGroup `json:"targetGroup"`
+	TargetGroupId  int                         `json:"targetGroupId"`
+	AllowedSources []string                    `json:"allowedSources"`
+}
+
+type CreateListener struct {
+	Name           string               `json:"name"`
+	Identity       string               `json:"identity"`
+	Description    string               `json:"description"`
+	Labels         Labels               `json:"labels,omitempty"`
+	Annotations    Annotations          `json:"annotations,omitempty"`
+	Port           int                  `json:"port"`
+	Protocol       LoadbalancerProtocol `json:"protocol"`
+	TargetGroup    string               `json:"targetGroup"`
+	AllowedSources []string             `json:"allowedSources,omitempty"`
+}
+
+type UpdateListener struct {
+	Name        string               `json:"name"`
+	Identity    string               `json:"identity"`
+	Description string               `json:"description"`
+	Labels      Labels               `json:"labels,omitempty"`
+	Annotations Annotations          `json:"annotations,omitempty"`
+	Port        int                  `json:"port"`
+	Protocol    LoadbalancerProtocol `json:"protocol"`
+	TargetGroup string               `json:"targetGroup"`
+}
+
+type ListLoadbalancerListenersRequest struct {
+	Loadbalancer string
+}
+
+type GetLoadbalancerListenerRequest struct {
+	Loadbalancer string
+	Listener     string
 }

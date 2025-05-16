@@ -132,48 +132,6 @@ type VpcLoadbalancer struct {
 	LoadbalancerListeners []VpcLoadbalancerListener `json:"loadbalancerListeners"`
 }
 
-type VpcLoadbalancerListener struct {
-	Identity      string    `json:"identity"`
-	Name          string    `json:"name"`
-	Slug          string    `json:"slug"`
-	Description   string    `json:"description"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-	ObjectVersion int       `json:"objectVersion"`
-
-	Port           int                         `json:"port"`
-	Protocol       LoadbalancerProtocol        `json:"protocol"`
-	TargetGroup    *VpcLoadbalancerTargetGroup `json:"targetGroup"`
-	TargetGroupId  int                         `json:"targetGroupId"`
-	AllowedSources []string                    `json:"allowedSources"`
-}
-
-type VpcLoadbalancerTargetGroup struct {
-	Identity      string    `json:"identity"`
-	Name          string    `json:"name"`
-	Slug          string    `json:"slug"`
-	Description   string    `json:"description"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-	ObjectVersion int       `json:"objectVersion"`
-
-	Organisation   *base.Organisation   `json:"organisation"`
-	Vpc            *Vpc                 `json:"vpc"`
-	TargetPort     int                  `json:"targetPort"`
-	Protocol       LoadbalancerProtocol `json:"protocol"`
-	TargetSelector map[string]string    `json:"targetSelector"`
-
-	LoadbalancerListeners              []VpcLoadbalancerListener           `json:"loadbalancerListeners"`
-	LoadbalancerTargetGroupAttachments []LoadbalancerTargetGroupAttachment `json:"loadbalancerTargetGroupAttachments"`
-}
-
-type LoadbalancerTargetGroupAttachment struct {
-	Identity                string                      `json:"identity"`
-	CreatedAt               time.Time                   `json:"createdAt"`
-	LoadbalancerTargetGroup *VpcLoadbalancerTargetGroup `json:"loadbalancerTargetGroup"`
-	VirtualMachineInstance  *Machine                    `json:"virtualMachineInstance"`
-}
-
 type Volume struct {
 	Identity      string    `json:"identity"`
 	Name          string    `json:"name"`
@@ -224,16 +182,16 @@ type VolumeAttachment struct {
 }
 
 type VpcGatewayEndpoint struct {
-	Identity      string            `json:"identity"`
-	Name          string            `json:"name"`
-	Slug          string            `json:"slug"`
-	Description   *string           `json:"description,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	CreatedAt     time.Time         `json:"createdAt"`
-	UpdatedAt     *time.Time        `json:"updatedAt,omitempty"`
-	DeletedAt     *time.Time        `json:"deletedAt,omitempty"`
-	ObjectVersion int               `json:"objectVersion"`
+	Identity      string      `json:"identity"`
+	Name          string      `json:"name"`
+	Slug          string      `json:"slug"`
+	Description   *string     `json:"description,omitempty"`
+	Labels        Labels      `json:"labels,omitempty"`
+	Annotations   Annotations `json:"annotations,omitempty"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     *time.Time  `json:"updatedAt,omitempty"`
+	DeletedAt     *time.Time  `json:"deletedAt,omitempty"`
+	ObjectVersion int         `json:"objectVersion"`
 
 	EndpointAddress  string             `json:"endpointAddress"`
 	EndpointHostname string             `json:"endpointHostname"`
@@ -245,16 +203,16 @@ type VpcGatewayEndpoint struct {
 }
 
 type RouteTable struct {
-	Identity      string            `json:"identity"`
-	Name          string            `json:"name"`
-	Slug          string            `json:"slug"`
-	Description   *string           `json:"description,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	CreatedAt     time.Time         `json:"createdAt"`
-	UpdatedAt     *time.Time        `json:"updatedAt,omitempty"`
-	DeletedAt     *time.Time        `json:"deletedAt,omitempty"`
-	ObjectVersion int               `json:"objectVersion"`
+	Identity      string      `json:"identity"`
+	Name          string      `json:"name"`
+	Slug          string      `json:"slug"`
+	Description   *string     `json:"description,omitempty"`
+	Labels        Labels      `json:"labels,omitempty"`
+	Annotations   Annotations `json:"annotations,omitempty"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     *time.Time  `json:"updatedAt,omitempty"`
+	DeletedAt     *time.Time  `json:"deletedAt,omitempty"`
+	ObjectVersion int         `json:"objectVersion"`
 
 	Organisation      *base.Organisation `json:"organisation,omitempty"`
 	Vpc               *Vpc               `json:"vpc"`
@@ -544,86 +502,4 @@ type UpdateMachine struct {
 
 	// SecurityGroupAttachments is a list of security group identities that will be attached to the virtual machine instance.
 	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
-}
-
-type CreateLoadbalancer struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Labels      Labels      `json:"labels,omitempty"`
-	Annotations Annotations `json:"annotations,omitempty"`
-
-	// Subnet is the subnet in which the loadbalancer will be deployed.
-	Subnet string `json:"subnet"`
-
-	// InternalLoadbalancer is a flag that indicates whether the loadbalancer should be an internal loadbalancer.
-	// If true, the loadbalancer will be an internal loadbalancer and will not be accessible from the public internet.
-	// It will not be assigned a public IP address, and instead will be assigned a (private) IP address from the subnet.
-	InternalLoadbalancer bool `json:"internalLoadbalancer"`
-
-	// DeleteProtection is a flag that indicates whether the loadbalancer should be protected from deletion.
-	// Meaning delete protection will require to be disabled explicitly before the loadbalancer can be deleted.
-	DeleteProtection bool `json:"deleteProtection"`
-
-	// Listeners is a list of listeners that will be created on the loadbalancer during creation.
-	Listeners []CreateListener `json:"listeners"`
-
-	// SecurityGroupAttachments is a list of security group identities that will be attached to the loadbalancer.
-	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
-}
-
-type UpdateLoadbalancer struct {
-	Name             string      `json:"name"`
-	Description      string      `json:"description"`
-	Labels           Labels      `json:"labels,omitempty"`
-	Annotations      Annotations `json:"annotations,omitempty"`
-	DeleteProtection bool        `json:"deleteProtection"`
-
-	// SecurityGroupAttachments is a list of security group identities that will be attached to the loadbalancer.
-	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
-}
-
-type CreateTargetGroup struct {
-	Name           string               `json:"name"`
-	Description    string               `json:"description"`
-	Labels         Labels               `json:"labels,omitempty"`
-	Annotations    Annotations          `json:"annotations,omitempty"`
-	Vpc            string               `json:"vpc"`
-	TargetPort     int                  `json:"targetPort"`
-	Protocol       LoadbalancerProtocol `json:"protocol"`
-	TargetSelector map[string]string    `json:"targetSelector,omitempty"`
-}
-
-type UpdateTargetGroup struct {
-	Name           string               `json:"name"`
-	Description    string               `json:"description"`
-	Labels         Labels               `json:"labels,omitempty"`
-	Annotations    Annotations          `json:"annotations,omitempty"`
-	TargetPort     int                  `json:"targetPort"`
-	Protocol       LoadbalancerProtocol `json:"protocol"`
-	TargetSelector map[string]string    `json:"targetSelector,omitempty"`
-}
-
-type AttachTargetRequest struct {
-	ServerIdentity string `json:"serverIdentity"`
-}
-
-type CreateListener struct {
-	Name           string               `json:"name"`
-	Description    string               `json:"description"`
-	Labels         Labels               `json:"labels,omitempty"`
-	Annotations    Annotations          `json:"annotations,omitempty"`
-	Port           int                  `json:"port"`
-	Protocol       LoadbalancerProtocol `json:"protocol"`
-	TargetGroup    string               `json:"targetGroup"`
-	AllowedSources []string             `json:"allowedSources,omitempty"`
-}
-
-type UpdateListener struct {
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Labels      Labels               `json:"labels,omitempty"`
-	Annotations Annotations          `json:"annotations,omitempty"`
-	Port        int                  `json:"port"`
-	Protocol    LoadbalancerProtocol `json:"protocol"`
-	TargetGroup string               `json:"targetGroup"`
 }
