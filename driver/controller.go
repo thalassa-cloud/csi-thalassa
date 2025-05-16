@@ -59,6 +59,9 @@ type Driver struct {
 
 	validateAttachment bool
 
+	vpc             string
+	clusterIdentity string
+
 	srv     *grpc.Server
 	httpSrv *http.Server
 	log     *slog.Logger
@@ -87,6 +90,9 @@ type NewDriverParams struct {
 	ThalassaOrganisation string
 	ThalassaInsecure     bool
 	Region               string
+
+	Vpc     string
+	Cluster string
 
 	DriverName  string
 	DebugAddr   string
@@ -158,6 +164,8 @@ func NewDriver(p NewDriverParams) (*Driver, error) {
 		log:                   log,
 		iaas:                  iaasClient,
 		healthChecker:         healthChecker,
+		vpc:                   p.Vpc,
+		clusterIdentity:       p.Cluster,
 	}, nil
 }
 

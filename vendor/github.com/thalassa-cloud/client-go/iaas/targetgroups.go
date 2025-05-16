@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/base"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
@@ -14,15 +15,16 @@ const (
 )
 
 // ListTargetGroups lists all loadbalancer target groups for a given organisation.
-func (c *Client) ListTargetGroups(ctx context.Context, listRequest ListTargetGroupsRequest) ([]VpcLoadbalancerTargetGroup, error) {
+func (c *Client) ListTargetGroups(ctx context.Context, listRequest *ListTargetGroupsRequest) ([]VpcLoadbalancerTargetGroup, error) {
 	targetGroups := []VpcLoadbalancerTargetGroup{}
 	req := c.R().SetResult(&targetGroups)
 
-	if listRequest.Vpc != nil && *listRequest.Vpc != "" {
-		req = req.SetQueryParam("vpc", *listRequest.Vpc)
-	}
-	if listRequest.Loadbalancer != nil && *listRequest.Loadbalancer != "" {
-		req = req.SetQueryParam("loadbalancer", *listRequest.Loadbalancer)
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
 	}
 
 	resp, err := c.Do(ctx, req, client.GET, TargetGroupEndpoint)
@@ -112,8 +114,25 @@ func (c *Client) DeleteTargetGroup(ctx context.Context, deleteRequest DeleteTarg
 	}
 
 	req := c.R()
-
 	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s", TargetGroupEndpoint, deleteRequest.Identity))
+	if err != nil {
+		return err
+	}
+	if err := c.Check(resp); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetTargetGroupServerAttachments sets the server attachments for a target group.
+// This will replace the existing attachments with the ones provided in the request.
+// Note: Any existing attachments not present in the request will be detached.
+func (c *Client) SetTargetGroupServerAttachments(ctx context.Context, setRequest TargetGroupAttachmentsBatch) error {
+	if setRequest.TargetGroupID == "" {
+		return fmt.Errorf("targetGroupID is required")
+	}
+	req := c.R().SetBody(setRequest)
+	resp, err := c.Do(ctx, req, client.POST, fmt.Sprintf("%s/%s/attachments", TargetGroupEndpoint, setRequest.TargetGroupID))
 	if err != nil {
 		return err
 	}
@@ -168,13 +187,15 @@ func (c *Client) DetachServerFromTargetGroup(ctx context.Context, detachRequest 
 }
 
 type VpcLoadbalancerTargetGroup struct {
-	Identity      string    `json:"identity"`
-	Name          string    `json:"name"`
-	Slug          string    `json:"slug"`
-	Description   string    `json:"description"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
-	ObjectVersion int       `json:"objectVersion"`
+	Identity      string      `json:"identity"`
+	Name          string      `json:"name"`
+	Slug          string      `json:"slug"`
+	Description   string      `json:"description"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	UpdatedAt     time.Time   `json:"updatedAt"`
+	ObjectVersion int         `json:"objectVersion"`
+	Labels        Labels      `json:"labels,omitempty"`
+	Annotations   Annotations `json:"annotations,omitempty"`
 
 	Organisation   *base.Organisation   `json:"organisation"`
 	Vpc            *Vpc                 `json:"vpc"`
@@ -203,12 +224,7 @@ type GetTargetGroupRequest struct {
 }
 
 type ListTargetGroupsRequest struct {
-	// Vpc is the VPC identity in which the target group is deployed.
-	Vpc *string
-	// Loadbalancer is the loadbalancer identity in which the target group is deployed.
-	Loadbalancer *string
-	// Labels is a map of labels to filter the target groups by.
-	Labels Labels
+	Filters []filters.Filter
 }
 
 type CreateTargetGroup struct {
@@ -248,4 +264,9 @@ type AttachTargetGroupRequest struct {
 
 type DeleteTargetGroupRequest struct {
 	Identity string
+}
+
+type TargetGroupAttachmentsBatch struct {
+	TargetGroupID string
+	Attachments   []AttachTarget `json:"attachments"`
 }

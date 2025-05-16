@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -11,10 +12,22 @@ const (
 	RouteTableEndpoint = "/v1/route-tables"
 )
 
+type ListRouteTablesRequest struct {
+	Filters []filters.Filter
+}
+
 // ListRouteTables lists all RouteTables for a given organisation.
-func (c *Client) ListRouteTables(ctx context.Context) ([]RouteTable, error) {
+func (c *Client) ListRouteTables(ctx context.Context, listRequest *ListRouteTablesRequest) ([]RouteTable, error) {
 	routeTables := []RouteTable{}
 	req := c.R().SetResult(&routeTables)
+
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, RouteTableEndpoint)
 	if err != nil {

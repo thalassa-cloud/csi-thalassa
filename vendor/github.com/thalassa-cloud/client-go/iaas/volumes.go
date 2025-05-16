@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -11,11 +12,23 @@ const (
 	VolumeEndpoint = "/v1/volumes"
 )
 
+type ListVolumesRequest struct {
+	Filters []filters.Filter
+}
+
 // ListVolumes lists all volumes for the current organisation.
 // The current organisation is determined by the client's organisation identity.
-func (c *Client) ListVolumes(ctx context.Context) ([]Volume, error) {
+func (c *Client) ListVolumes(ctx context.Context, listRequest *ListVolumesRequest) ([]Volume, error) {
 	volumes := []Volume{}
 	req := c.R().SetResult(&volumes)
+
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, VolumeEndpoint)
 	if err != nil {

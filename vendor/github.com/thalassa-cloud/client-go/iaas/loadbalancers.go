@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -12,15 +13,16 @@ const (
 )
 
 // ListLoadbalancers lists all loadbalancers for a given organisation.
-func (c *Client) ListLoadbalancers(ctx context.Context, listRequest ListLoadbalancersRequest) ([]VpcLoadbalancer, error) {
+func (c *Client) ListLoadbalancers(ctx context.Context, listRequest *ListLoadbalancersRequest) ([]VpcLoadbalancer, error) {
 	loadbalancers := []VpcLoadbalancer{}
 	req := c.R().SetResult(&loadbalancers)
 
-	if listRequest.Vpc != nil && *listRequest.Vpc != "" {
-		req = req.SetQueryParam("vpc", *listRequest.Vpc)
-	}
-	if listRequest.Subnet != nil && *listRequest.Subnet != "" {
-		req = req.SetQueryParam("subnet", *listRequest.Subnet)
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
 	}
 
 	resp, err := c.Do(ctx, req, client.GET, LoadbalancerEndpoint)
@@ -35,14 +37,14 @@ func (c *Client) ListLoadbalancers(ctx context.Context, listRequest ListLoadbala
 }
 
 // GetLoadbalancer retrieves a specific loadbalancer by its identity.
-func (c *Client) GetLoadbalancer(ctx context.Context, getRequest GetLoadbalancerRequest) (*VpcLoadbalancer, error) {
-	if getRequest.Identity == "" {
+func (c *Client) GetLoadbalancer(ctx context.Context, loadbalancerIdentity string) (*VpcLoadbalancer, error) {
+	if loadbalancerIdentity == "" {
 		return nil, fmt.Errorf("identity is required")
 	}
 
 	var loadbalancer *VpcLoadbalancer
 	req := c.R().SetResult(&loadbalancer)
-	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, getRequest.Identity))
+	resp, err := c.Do(ctx, req, client.GET, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, loadbalancerIdentity))
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +98,14 @@ func (c *Client) UpdateLoadbalancer(ctx context.Context, update UpdateLoadbalanc
 }
 
 // DeleteLoadbalancer deletes a specific loadbalancer by its identity.
-func (c *Client) DeleteLoadbalancer(ctx context.Context, deleteRequest DeleteLoadbalancerRequest) error {
+func (c *Client) DeleteLoadbalancer(ctx context.Context, loadbalancerIdentity string) error {
+	if loadbalancerIdentity == "" {
+		return fmt.Errorf("identity is required")
+	}
+
 	req := c.R()
 
-	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, deleteRequest.Identity))
+	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s", LoadbalancerEndpoint, loadbalancerIdentity))
 	if err != nil {
 		return err
 	}
@@ -110,13 +116,7 @@ func (c *Client) DeleteLoadbalancer(ctx context.Context, deleteRequest DeleteLoa
 }
 
 type ListLoadbalancersRequest struct {
-	Vpc    *string `json:"vpc,omitempty"`
-	Subnet *string `json:"subnet,omitempty"`
-	Labels Labels  `json:"labels,omitempty"`
-}
-
-type GetLoadbalancerRequest struct {
-	Identity string `json:"identity"`
+	Filters []filters.Filter
 }
 
 type CreateLoadbalancer struct {
@@ -154,8 +154,4 @@ type UpdateLoadbalancer struct {
 
 	// SecurityGroupAttachments is a list of security group identities that will be attached to the loadbalancer.
 	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
-}
-
-type DeleteLoadbalancerRequest struct {
-	Identity string `json:"identity"`
 }

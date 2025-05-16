@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/thalassa-cloud/client-go/filters"
+	"github.com/thalassa-cloud/client-go/pkg/base"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -14,9 +17,16 @@ const (
 )
 
 // ListMachines lists all Machines for a given organisation.
-func (c *Client) ListMachines(ctx context.Context) ([]Machine, error) {
+func (c *Client) ListMachines(ctx context.Context, listRequest *ListMachinesRequest) ([]Machine, error) {
 	subnets := []Machine{}
 	req := c.R().SetResult(&subnets)
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req.SetQueryParam(k, v)
+			}
+		}
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, MachineEndpoint)
 	if err != nil {
@@ -142,3 +152,59 @@ func (c *Client) MachineConsole(ctx context.Context, identity string) (*websocke
 	// Get the websocket connection directly from the console endpoint
 	return c.DialWebsocket(ctx, endpoint)
 }
+
+type ListMachinesRequest struct {
+	Filters []filters.Filter
+}
+
+type Machine struct {
+	Identity         string      `json:"identity"`
+	Name             string      `json:"name"`
+	Slug             string      `json:"slug"`
+	CreatedAt        time.Time   `json:"createdAt"`
+	UpdatedAt        *time.Time  `json:"updatedAt,omitempty"`
+	Description      *string     `json:"description,omitempty"`
+	Annotations      Annotations `json:"annotations,omitempty"`
+	Labels           Labels      `json:"labels,omitempty"`
+	State            MachineState
+	CloudInit        *string `json:"cloudInit"`
+	DeleteProtection bool    `json:"deleteProtection"`
+	// SecurityGroups    []SecurityGroup          `json:"securityGroups,omitempty"`
+	Organisation      *base.Organisation       `json:"organisation,omitempty"`
+	MachineType       *MachineType             `json:"machineType,omitempty"`
+	MachineImage      *MachineImage            `json:"machineImage,omitempty"`
+	PersistentVolume  *Volume                  `json:"persistentVolume,omitempty"`
+	Vpc               *Vpc                     `json:"vpc,omitempty"`
+	Subnet            *Subnet                  `json:"subnet,omitempty"`
+	Interfaces        VirtualMachineInterfaces `json:"interfaces,omitempty"`
+	VolumeAttachments []VolumeAttachment       `json:"volumeAttachments,omitempty"`
+	Status            ResourceStatus           `json:"status"`
+	Region            *string                  `json:"region,omitempty"`
+	// AvailabilityZone is the availability zone in which the virtual machine instance is deployed.
+	AvailabilityZone *string `json:"availabilityZone,omitempty"`
+	// SecurityGroupAttachments is a list of security group identities that are attached to the virtual machine instance.
+	SecurityGroupAttachments []string `json:"securityGroupAttachments,omitempty"`
+}
+
+type VirtualMachineInterfaces []VirtualMachineInterface
+type VirtualMachineInterface struct {
+	// Name is the name of the interface
+	Name string `json:"name" validate:"required"`
+	// MacAddress is the MAC address of the interface
+	MacAddress string `json:"macAddress"`
+	// IPAddresses is a list of IP addresses that are assigned to the interface
+	IPAddresses []string `json:"ipAddresses"`
+}
+
+type MachineState string
+
+const (
+	// MachineStateRunning is the state of the machine that is running
+	MachineStateRunning MachineState = "running"
+	// MachineStateStopped is the state of the machine that is stopped
+	MachineStateStopped MachineState = "stopped"
+	// MachineStateDeleting is the state of the machine that is being deleted
+	MachineStateDeleting MachineState = "deleting"
+	// MachineStateDeleted is the state of the machine that is deleted
+	MachineStateDeleted MachineState = "deleted"
+)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -11,11 +12,23 @@ const (
 	MachineTypeEndpoint = "/v1/machine-types"
 )
 
+type ListMachineTypesRequest struct {
+	Filters []filters.Filter
+}
+
 // ListMachineTypes lists all MachineTypes for the current organisation.
 // The current organisation is determined by the client's organisation identity.
-func (c *Client) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
+func (c *Client) ListMachineTypes(ctx context.Context, listRequest *ListMachineTypesRequest) ([]MachineType, error) {
 	machineTypes := []MachineType{}
 	req := c.R().SetResult(&machineTypes)
+
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, MachineTypeEndpoint)
 	if err != nil {

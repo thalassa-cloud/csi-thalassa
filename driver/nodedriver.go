@@ -44,6 +44,8 @@ type NewNodeDriverParams struct {
 	VolumeLimit        uint
 	NodeID             string
 	Region             string
+	Vpc                string
+	Cluster            string
 }
 
 // NewDriver returns a CSI plugin that contains the necessary gRPC
@@ -69,6 +71,8 @@ func NewNodeDriver(p NewNodeDriverParams) (*Driver, error) {
 		publishInfoVolumeName: driverName + "/volume-name",
 		region:                p.Region,
 		volumeLimit:           p.VolumeLimit,
+		vpc:                   p.Vpc,
+		clusterIdentity:       p.Cluster,
 	}, nil
 }
 

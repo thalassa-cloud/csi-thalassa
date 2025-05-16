@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/iaas"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 	"google.golang.org/grpc/codes"
@@ -95,7 +96,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		volumeTypeParam = "block"
 	}
 
-	volumeTypes, err := d.iaas.ListVolumeTypes(ctx)
+	volumeTypes, err := d.iaas.ListVolumeTypes(ctx, nil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -121,6 +122,17 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		Description:         createdByThalassaCSI,
 		Size:                int(size / giB),
 		VolumeTypeIdentity:  volumeTypeIdentity,
+		Labels: map[string]string{
+			"k8s.thalassa.cloud/csi-driver":      "true",
+			"k8s.thalassa.cloud/csi-driver-name": d.name,
+		},
+		Annotations: map[string]string{
+			"k8s.thalassa.cloud/description": "Provisioned by Thalassa CSI driver",
+		},
+	}
+
+	if d.clusterIdentity != "" {
+		volumeReq.Labels["k8s.thalassa.cloud/cluster-identity"] = d.clusterIdentity
 	}
 
 	contentSource := req.GetVolumeContentSource()
@@ -188,7 +200,19 @@ func (d *Driver) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (
 	log := d.log.With("max_entries", req.MaxEntries, "effective_max_entries", maxEntries, "req_starting_token", req.StartingToken, "method", "list_volumes")
 	log.Info("list volumes called")
 
-	volumes, err := d.iaas.ListVolumes(ctx)
+	volumes, err := d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
+		Filters: []filters.Filter{
+			&filters.FilterKeyValue{
+				Key:   filters.FilterRegion,
+				Value: d.region,
+			},
+			&filters.LabelFilter{
+				MatchLabels: map[string]string{
+					// "csi-driver": "thalassa",
+				},
+			},
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list volumes: %w", err)
 	}

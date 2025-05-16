@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -11,10 +12,22 @@ const (
 	NatGatewayEndpoint = "/v1/nat-gateways"
 )
 
+type ListNatGatewaysRequest struct {
+	Filters []filters.Filter
+}
+
 // ListNatGateways lists all NatGateways for a given organisation.
-func (c *Client) ListNatGateways(ctx context.Context) ([]VpcNatGateway, error) {
+func (c *Client) ListNatGateways(ctx context.Context, listRequest *ListNatGatewaysRequest) ([]VpcNatGateway, error) {
 	subnets := []VpcNatGateway{}
 	req := c.R().SetResult(&subnets)
+
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, NatGatewayEndpoint)
 	if err != nil {

@@ -68,6 +68,8 @@ var pluginCmd = &cobra.Command{
 				ThalassaOrganisation: viper.GetString("organisation"),
 				KubeConfig:           viper.GetString("kube-config"),
 				NodeID:               viper.GetString("node-id"),
+				Cluster:              viper.GetString("cluster"),
+				Vpc:                  viper.GetString("vpc"),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create controller: %w", err)
@@ -85,6 +87,8 @@ var pluginCmd = &cobra.Command{
 				VolumeLimit:        viper.GetUint("volume-limit"),
 				NodeID:             viper.GetString("node-id"),
 				Region:             viper.GetString("thalassa-region"),
+				Cluster:            viper.GetString("cluster"),
+				Vpc:                viper.GetString("vpc"),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create node driver: %w", err)
@@ -124,6 +128,8 @@ func init() {
 	pluginCmd.Flags().String("organisation", "", "Thalassa Cloud organisation")
 	pluginCmd.Flags().String("kube-config", "", "Path to kube config file")
 
+	pluginCmd.Flags().String("cluster", "", "Cluster identity of the cluster. This is used to label volumes with the cluster identity")
+	pluginCmd.Flags().String("vpc", "", "VPC identity in which the cluster is deployed. This is used for discovering virtual machines to attach volumes to")
 	// Bind flags to viper
 
 	viper.BindPFlag("mode", pluginCmd.Flags().Lookup("mode"))
@@ -144,5 +150,8 @@ func init() {
 	viper.BindPFlag("thalassa-region", pluginCmd.Flags().Lookup("thalassa-region"))
 	viper.BindPFlag("organisation", pluginCmd.Flags().Lookup("organisation"))
 	viper.BindPFlag("kube-config", pluginCmd.Flags().Lookup("kube-config"))
+
+	viper.BindPFlag("cluster", pluginCmd.Flags().Lookup("cluster"))
+	viper.BindPFlag("vpc", pluginCmd.Flags().Lookup("vpc"))
 
 }

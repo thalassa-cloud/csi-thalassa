@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 )
 
@@ -11,10 +12,22 @@ const (
 	SubnetEndpoint = "/v1/subnets"
 )
 
+type ListSubnetsRequest struct {
+	Filters []filters.Filter
+}
+
 // ListSubnets lists all Subnets for a given organisation.
-func (c *Client) ListSubnets(ctx context.Context) ([]Subnet, error) {
+func (c *Client) ListSubnets(ctx context.Context, listRequest *ListSubnetsRequest) ([]Subnet, error) {
 	subnets := []Subnet{}
 	req := c.R().SetResult(&subnets)
+
+	if listRequest != nil {
+		for _, filter := range listRequest.Filters {
+			for k, v := range filter.ToParams() {
+				req = req.SetQueryParam(k, v)
+			}
+		}
+	}
 
 	resp, err := c.Do(ctx, req, client.GET, SubnetEndpoint)
 	if err != nil {

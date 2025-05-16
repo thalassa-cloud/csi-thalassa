@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/iaas"
 	"github.com/thalassa-cloud/client-go/pkg/client"
 	"google.golang.org/grpc/codes"
@@ -78,7 +79,7 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	if err != nil {
 		if err == client.ErrNotFound {
 			// fallback to the node name
-			machines, err := d.iaas.ListMachines(ctx)
+			machines, err := d.iaas.ListMachines(ctx, &iaas.ListMachinesRequest{})
 			if err != nil {
 				return nil, err
 			}
@@ -186,7 +187,18 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	if err != nil {
 		if err == client.ErrNotFound {
 			// fallback to the node name
-			machines, err := d.iaas.ListMachines(ctx)
+			machines, err := d.iaas.ListMachines(ctx, &iaas.ListMachinesRequest{
+				Filters: []filters.Filter{
+					&filters.FilterKeyValue{
+						Key:   filters.FilterRegion,
+						Value: d.region,
+					},
+					&filters.FilterKeyValue{
+						Key:   filters.FilterVpcIdentity,
+						Value: d.vpc,
+					},
+				},
+			})
 			if err != nil {
 				return nil, err
 			}
