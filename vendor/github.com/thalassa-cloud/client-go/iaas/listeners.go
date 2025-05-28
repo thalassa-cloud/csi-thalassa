@@ -123,7 +123,7 @@ type VpcLoadbalancerListener struct {
 	// ObjectVersion is the version of the listener.
 	ObjectVersion int `json:"objectVersion"`
 	// Labels are arbitrary key-value pairs that can be used to store additional information about the listener, and are used for matching resources.
-	Labels Annotations `json:"labels,omitempty"`
+	Labels Labels `json:"labels,omitempty"`
 	// Annotations are arbitrary key-value pairs that can be used to store additional information about the listener, and are used for matching resources.
 	Annotations Annotations `json:"annotations,omitempty"`
 

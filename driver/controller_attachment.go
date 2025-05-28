@@ -218,7 +218,7 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		}
 	}
 
-	if _, err = d.iaas.DetachVolume(ctx, req.VolumeId, iaas.DetachVolumeRequest{
+	if err = d.iaas.DetachVolume(ctx, req.VolumeId, iaas.DetachVolumeRequest{
 		ResourceIdentity: attachToIdentity,
 		ResourceType:     "cloud_virtual_machine",
 	}); err != nil {
