@@ -9,7 +9,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/thalassa-cloud/client-go v0.14.5
-	golang.org/x/sync v0.15.0
+	golang.org/x/sync v0.16.0
 	golang.org/x/sys v0.34.0
 	google.golang.org/grpc v1.73.0
 	k8s.io/apimachinery v0.33.1
