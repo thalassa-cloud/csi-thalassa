@@ -155,7 +155,7 @@ func (c *Client) AttachServerToTargetGroup(ctx context.Context, attachRequest At
 	req := c.R().
 		SetBody(attachRequest.AttachTarget).SetResult(&result)
 
-	resp, err := c.Do(ctx, req, client.POST, fmt.Sprintf("%s/%s/attachments", TargetGroupEndpoint, attachRequest.TargetGroupID))
+	resp, err := c.Do(ctx, req, client.POST, fmt.Sprintf("%s/%s/attach", TargetGroupEndpoint, attachRequest.TargetGroupID))
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (c *Client) DetachServerFromTargetGroup(ctx context.Context, detachRequest 
 
 	req := c.R()
 
-	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s/attachments/%s", TargetGroupEndpoint, detachRequest.TargetGroupID, detachRequest.AttachmentID))
+	resp, err := c.Do(ctx, req, client.DELETE, fmt.Sprintf("%s/%s/detach/%s", TargetGroupEndpoint, detachRequest.TargetGroupID, detachRequest.AttachmentID))
 	if err != nil {
 		return err
 	}
