@@ -8,7 +8,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/thalassa-cloud/client-go v0.14.5
+	github.com/thalassa-cloud/client-go v0.16.1
 	golang.org/x/sync v0.16.0
 	golang.org/x/sys v0.34.0
 	google.golang.org/grpc v1.73.0
