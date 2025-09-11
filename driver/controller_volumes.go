@@ -141,7 +141,17 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		if snapshotID == "" {
 			return nil, status.Error(codes.InvalidArgument, "snapshot ID is empty")
 		}
-		return nil, status.Error(codes.Unimplemented, "snapshot is not supported")
+
+		_, err := d.iaas.GetSnapshot(ctx, snapshotID)
+		if err != nil {
+			if err == client.ErrNotFound {
+				return nil, status.Error(codes.NotFound, "snapshot not found")
+			}
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+		log.With("snapshot_id", snapshotID).Info("using snapshot to create volume")
+
+		volumeReq.RestoreFromSnapshotId = &snapshotID
 	}
 
 	log.With("volume_req", volumeReq).Info("creating volume")
