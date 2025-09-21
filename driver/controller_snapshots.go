@@ -41,28 +41,130 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	log := d.log.With("req_name", req.GetName(), "req_source_volume_id", req.GetSourceVolumeId(), "req_parameters", req.GetParameters(), "method", "create_snapshot")
 	log.Info("creating snapshot")
 
-	snapshot, err := d.iaas.CreateSnapshot(ctx, iaas.CreateSnapshotRequest{
-		Name:           req.GetName(),
-		VolumeIdentity: req.GetSourceVolumeId(),
-		Labels: iaas.Labels{
-			"csi.volume.id": req.GetSourceVolumeId(),
-		},
-		Annotations: iaas.Annotations{
-			"csi.snapshot.id": req.GetName(),
-		},
-	})
-
+	snapshot, err := d.getOrCreateSnapshot(ctx, req)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+	if snapshot == nil {
+		return nil, status.Error(codes.NotFound, "snapshot not found or not created")
+	}
+	log.With("snapshot_identity", snapshot.Identity).Info("waiting for snapshot to be ready")
+	// wait for the snapshot to be ready
+	if err := d.iaas.WaitUntilSnapshotIsAvailable(ctx, snapshot.Identity); err != nil {
+		log.With("snapshot_identity", snapshot.Identity).Error("failed to wait for snapshot to be ready", "error", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	log.With("snapshot_identity", snapshot.Identity).Info("snapshot is ready")
+	snapshot, err = d.iaas.GetSnapshot(ctx, snapshot.Identity)
+	if err != nil {
+		if errors.Is(err, client.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "snapshot not found")
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
 
+	log.With("snapshot_identity", snapshot.Identity).Info("mapping snapshot to CSI snapshot")
 	mapped, err := mapToCSISnapshot(snapshot)
 	if err != nil {
+		log.With("snapshot_identity", snapshot.Identity).Error("failed to map snapshot to CSI snapshot", "error", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &csi.CreateSnapshotResponse{
 		Snapshot: mapped,
 	}, nil
+}
+
+func (d *Driver) getOrCreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*iaas.Snapshot, error) {
+	log := d.log.With("req_name", req.GetName(), "req_source_volume_id", req.GetSourceVolumeId(), "req_parameters", req.GetParameters(), "method", "get_or_create_snapshot")
+	log.Info("getting or creating snapshot")
+
+	// First try to find the snapshot by name
+	snapshots, err := d.iaas.ListSnapshots(ctx, &iaas.ListSnapshotsRequest{
+		Filters: []filters.Filter{
+			&filters.FilterKeyValue{
+				Key:   filters.FilterRegion,
+				Value: d.region,
+			},
+			&filters.FilterKeyValue{
+				Key:   filters.FilterKey("name"),
+				Value: req.GetName(),
+			},
+		},
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list snapshots: %s", err)
+	}
+	for _, snapshot := range snapshots {
+		if snapshot.Name == req.GetName() {
+			return &snapshot, nil
+		}
+	}
+
+	// If not found by name, try to find by volume name
+	volumes, err := d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
+		Filters: []filters.Filter{
+			&filters.FilterKeyValue{
+				Key:   filters.FilterRegion,
+				Value: d.region,
+			},
+			&filters.FilterKeyValue{
+				Key:   filters.FilterKey("name"),
+				Value: req.GetSourceVolumeId(),
+			},
+		},
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list volumes: %s", err)
+	}
+
+	if len(volumes) == 0 {
+		return nil, status.Errorf(codes.NotFound, "volume with name %q not found", req.GetSourceVolumeId())
+	}
+
+	if len(volumes) > 1 {
+		return nil, status.Errorf(codes.Internal, "multiple volumes found with name %q", req.GetSourceVolumeId())
+	}
+	volume := volumes[0]
+
+	volumeIdentity := volume.Identity
+	log = log.With("resolved_volume_identity", volumeIdentity)
+	log.Info("resolved volume identity for snapshot creation")
+
+	labels := iaas.Labels{
+		"csi.volume.id":                      req.GetSourceVolumeId(),
+		"k8s.thalassa.cloud/csi-driver":      "true",
+		"k8s.thalassa.cloud/csi-driver-name": d.name,
+	}
+	annotations := iaas.Annotations{
+		"csi.snapshot.id":                req.GetName(),
+		"k8s.thalassa.cloud/description": "Provisioned by Thalassa CSI driver",
+	}
+	for k, v := range d.CustomLabels {
+		if _, ok := labels[k]; !ok {
+			labels[k] = v
+		}
+	}
+	for k, v := range d.CustomAnnotations {
+		if _, ok := annotations[k]; !ok {
+			annotations[k] = v
+		}
+	}
+
+	if d.clusterIdentity != "" {
+		labels["k8s.thalassa.cloud/cluster-identity"] = d.clusterIdentity
+	}
+
+	snapshot, err := d.iaas.CreateSnapshot(ctx, iaas.CreateSnapshotRequest{
+		Name:           req.GetName(),
+		VolumeIdentity: volumeIdentity,
+		Labels:         labels,
+		Annotations:    annotations,
+	})
+
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return snapshot, nil
 }
 
 // DeleteSnapshot deletes a snapshot.

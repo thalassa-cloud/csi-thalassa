@@ -171,6 +171,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 					},
 				},
 			},
+			ContentSource: contentSource,
 		},
 	}
 
