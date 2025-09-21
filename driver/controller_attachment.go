@@ -172,9 +172,12 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		// we construct a kubernetes client to get the node name
 		providerID, err := d.getNodeMachineIdentity(ctx, req.NodeId)
 		if err != nil {
-			return nil, err
+			// If we can't resolve the node ID, log the error but continue
+			// This might happen if the node was deleted or doesn't exist
+			log.With("error", err).Warn("failed to resolve node ID to machine identity, continuing with original node ID")
+		} else {
+			req.NodeId = providerID
 		}
-		req.NodeId = providerID
 	}
 
 	// nodeName := req.NodeId
@@ -200,7 +203,8 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 				},
 			})
 			if err != nil {
-				return nil, err
+				log.With("error", err).Warn("failed to list machines, assuming volume is detached")
+				return &csi.ControllerUnpublishVolumeResponse{}, nil
 			}
 			found := false
 			for _, machine := range machines {
@@ -211,10 +215,12 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 				}
 			}
 			if !found {
+				log.With("node_id", req.NodeId).Warn("machine not found, assuming volume is detached")
 				return &csi.ControllerUnpublishVolumeResponse{}, nil
 			}
 		} else {
-			return nil, err
+			log.With("error", err).Warn("failed to get machine, assuming volume is detached")
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
 	}
 

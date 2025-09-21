@@ -117,6 +117,8 @@ func init() {
 
 	pluginCmd.Flags().Uint("volume-limit", 20, "Volumes per node limit")
 	pluginCmd.Flags().String("node-id", "", "Node ID")
+	pluginCmd.Flags().String("custom-labels", "", "Additional custom labels to add to the driver")
+	pluginCmd.Flags().String("custom-annotations", "", "Additional custom annotations to add to the driver")
 
 	pluginCmd.Flags().String("thalassa-token", "", "Thalassa Cloud access token")
 	pluginCmd.Flags().String("thalassa-client-id", "", "Thalassa Cloud client ID")
@@ -141,6 +143,8 @@ func init() {
 
 	viper.BindPFlag("volume-limit", pluginCmd.Flags().Lookup("volume-limit"))
 	viper.BindPFlag("node-id", pluginCmd.Flags().Lookup("node-id"))
+	viper.BindPFlag("custom-labels", pluginCmd.Flags().Lookup("custom-labels"))
+	viper.BindPFlag("custom-annotations", pluginCmd.Flags().Lookup("custom-annotations"))
 
 	viper.BindPFlag("thalassa-token", pluginCmd.Flags().Lookup("thalassa-token"))
 	viper.BindPFlag("thalassa-client-id", pluginCmd.Flags().Lookup("thalassa-client-id"))

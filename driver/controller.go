@@ -77,6 +77,9 @@ type Driver struct {
 	ready       bool
 	volumeLimit uint
 	kubeConfig  string
+
+	CustomLabels      map[string]string
+	CustomAnnotations map[string]string
 }
 
 // NewDriverParams defines the parameters that can be passed to NewDriver.

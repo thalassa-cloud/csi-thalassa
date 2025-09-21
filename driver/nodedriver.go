@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -46,6 +47,9 @@ type NewNodeDriverParams struct {
 	Region             string
 	Vpc                string
 	Cluster            string
+
+	CustomLabels      string
+	CustomAnnotations string
 }
 
 // NewDriver returns a CSI plugin that contains the necessary gRPC
@@ -73,7 +77,23 @@ func NewNodeDriver(p NewNodeDriverParams) (*Driver, error) {
 		volumeLimit:           p.VolumeLimit,
 		vpc:                   p.Vpc,
 		clusterIdentity:       p.Cluster,
+		CustomLabels:          parseCustomLabels(p.CustomLabels),
+		CustomAnnotations:     parseCustomLabels(p.CustomAnnotations),
 	}, nil
+}
+
+func parseCustomLabels(customLabels string) map[string]string {
+	if customLabels == "" {
+		return nil
+	}
+	labels := make(map[string]string)
+	for _, label := range strings.Split(customLabels, ",") {
+		parts := strings.Split(label, "=")
+		if len(parts) == 2 {
+			labels[parts[0]] = parts[1]
+		}
+	}
+	return labels
 }
 
 // Run starts the CSI plugin by communication over the given endpoint

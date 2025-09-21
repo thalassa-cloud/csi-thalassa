@@ -71,13 +71,17 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	log := d.log.With("volume_name", volumeName, "storage_size_giga_bytes", size/giB, "method", "create_volume", "volume_capabilities", req.VolumeCapabilities)
 	log.Info("creating volume")
 
+	log.With("volume_identity", volumeIdentity).Info("getting volume to check if it already exists")
 	// get volume first, if it's created do no thing
 	volume, err := d.iaas.GetVolume(ctx, volumeIdentity)
-	if err != nil && err != client.ErrNotFound {
+	if err != nil && !client.IsNotFound(err) {
+		log.Error("failed to get volume to check if it already exists", "error", err)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	if volume != nil {
+		log.With("volume_identity", volume.Identity).Info("volume already created")
+
 		if int64(volume.Size)*giB != size {
 			return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("invalid option requested size: %d", size))
 		}
@@ -116,19 +120,32 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		return nil, status.Errorf(codes.InvalidArgument, "invalid volume type: %q: volume type not found", volumeTypeParam)
 	}
 
+	labels := iaas.Labels{
+		"k8s.thalassa.cloud/csi-driver":      "true",
+		"k8s.thalassa.cloud/csi-driver-name": d.name,
+	}
+	annotations := iaas.Annotations{
+		"k8s.thalassa.cloud/description": "Provisioned by Thalassa CSI driver",
+	}
+	for k, v := range d.CustomLabels {
+		if _, ok := labels[k]; !ok {
+			labels[k] = v
+		}
+	}
+	for k, v := range d.CustomAnnotations {
+		if _, ok := annotations[k]; !ok {
+			annotations[k] = v
+		}
+	}
+
 	volumeReq := iaas.CreateVolume{
 		Name:                volumeName,
 		CloudRegionIdentity: d.region,
 		Description:         createdByThalassaCSI,
 		Size:                int(size / giB),
 		VolumeTypeIdentity:  volumeTypeIdentity,
-		Labels: map[string]string{
-			"k8s.thalassa.cloud/csi-driver":      "true",
-			"k8s.thalassa.cloud/csi-driver-name": d.name,
-		},
-		Annotations: map[string]string{
-			"k8s.thalassa.cloud/description": "Provisioned by Thalassa CSI driver",
-		},
+		Labels:              labels,
+		Annotations:         annotations,
 	}
 
 	if d.clusterIdentity != "" {
@@ -142,10 +159,12 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 			return nil, status.Error(codes.InvalidArgument, "snapshot ID is empty")
 		}
 
-		_, err := d.iaas.GetSnapshot(ctx, snapshotID)
+		log.With("snapshot_id", snapshotID).Info("getting snapshot for restore")
+
+		_, err = d.iaas.GetSnapshot(ctx, snapshotID)
 		if err != nil {
 			if err == client.ErrNotFound {
-				return nil, status.Error(codes.NotFound, "snapshot not found")
+				return nil, status.Error(codes.NotFound, "snapshot not found for restore")
 			}
 			return nil, status.Error(codes.Internal, err.Error())
 		}
@@ -157,6 +176,11 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	log.With("volume_req", volumeReq).Info("creating volume")
 	vol, err := d.iaas.CreateVolume(ctx, volumeReq)
 	if err != nil {
+		if volumeReq.RestoreFromSnapshotId != nil {
+			log.With("snapshot_id", *volumeReq.RestoreFromSnapshotId).Warn("failed to create volume from snapshot")
+		} else {
+			log.Error("failed to create volume", "error", err)
+		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -190,11 +214,12 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 
 	err := d.iaas.DeleteVolume(ctx, req.VolumeId)
 	if err != nil {
-		if err == client.ErrNotFound {
+		if client.IsNotFound(err) {
 			// we assume it's deleted already for idempotency
 			log.With("error", err).Warn("assuming volume is deleted because it does not exist")
 			return &csi.DeleteVolumeResponse{}, nil
 		}
+		log.Error("failed to delete volume", "error", err)
 		return nil, err
 	}
 	log.Info("volume was deleted")
@@ -217,11 +242,11 @@ func (d *Driver) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (
 				Key:   filters.FilterRegion,
 				Value: d.region,
 			},
-			&filters.LabelFilter{
-				MatchLabels: map[string]string{
-					// "csi-driver": "thalassa",
-				},
-			},
+			// &filters.LabelFilter{
+			// 	MatchLabels: map[string]string{
+			// 		// "csi-driver": "thalassa",
+			// 	},
+			// },
 		},
 	})
 	if err != nil {
