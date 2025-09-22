@@ -43,7 +43,7 @@ func (d *Driver) ValidateVolumeCapabilities(ctx context.Context, req *csi.Valida
 	// check if volume exist before trying to validate it it
 	_, err := d.iaas.GetVolume(ctx, req.VolumeId)
 	if err != nil {
-		if err == client.ErrNotFound {
+		if client.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "volume %q does not exist", req.VolumeId)
 		}
 		return nil, err

@@ -163,7 +163,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 
 		_, err = d.iaas.GetSnapshot(ctx, snapshotID)
 		if err != nil {
-			if err == client.ErrNotFound {
+			if client.IsNotFound(err) {
 				return nil, status.Error(codes.NotFound, "snapshot not found for restore")
 			}
 			return nil, status.Error(codes.Internal, err.Error())
@@ -178,6 +178,9 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	if err != nil {
 		if volumeReq.RestoreFromSnapshotId != nil {
 			log.With("snapshot_id", *volumeReq.RestoreFromSnapshotId).Warn("failed to create volume from snapshot")
+			if client.IsNotFound(err) {
+				return nil, status.Error(codes.NotFound, "snapshot not found for restore")
+			}
 		} else {
 			log.Error("failed to create volume", "error", err)
 		}

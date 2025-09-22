@@ -55,7 +55,7 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	// check if volume exist before trying to attach it
 	vol, err := d.iaas.GetVolume(ctx, req.VolumeId)
 	if err != nil {
-		if err == client.ErrNotFound {
+		if client.IsNotFound(err) {
 			return nil, status.Errorf(codes.NotFound, "volume %q does not exist", req.VolumeId)
 		}
 		return nil, err
@@ -74,29 +74,33 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	// convert nodeName to provider id, as that is the machine identity we can use in the API
 
 	attachToIdentity := req.NodeId
+
 	// check if machine exist before trying to attach the volume to the machine
-	_, err = d.iaas.GetMachine(ctx, req.NodeId)
+	machines, err := d.iaas.ListMachines(ctx, &iaas.ListMachinesRequest{
+		Filters: []filters.Filter{
+			&filters.FilterKeyValue{
+				Key:   filters.FilterRegion,
+				Value: d.region,
+			},
+			&filters.FilterKeyValue{
+				Key:   filters.FilterVpcIdentity,
+				Value: d.vpc,
+			},
+		},
+	})
 	if err != nil {
-		if err == client.ErrNotFound {
-			// fallback to the node name
-			machines, err := d.iaas.ListMachines(ctx, &iaas.ListMachinesRequest{})
-			if err != nil {
-				return nil, err
-			}
-			found := false
-			for _, machine := range machines {
-				if machine.Name == req.NodeId || machine.Identity == req.NodeId || machine.Slug == req.NodeId {
-					attachToIdentity = machine.Identity
-					found = true
-					break
-				}
-			}
-			if !found {
-				return nil, status.Errorf(codes.NotFound, "machine %q does not exist", req.NodeId)
-			}
-		} else {
-			return nil, err
+		return nil, err
+	}
+	found := false
+	for _, machine := range machines {
+		if machine.Name == req.NodeId || machine.Identity == req.NodeId || machine.Slug == req.NodeId {
+			attachToIdentity = machine.Identity
+			found = true
+			break
 		}
+	}
+	if !found {
+		return nil, status.Errorf(codes.NotFound, "machine %q does not exist", req.NodeId)
 	}
 
 	attachedToMachine := ""
@@ -123,6 +127,9 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		ResourceType:     "cloud_virtual_machine",
 	})
 	if err != nil {
+		if client.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "machine %q does not exist", attachToIdentity)
+		}
 		return nil, err
 	}
 
@@ -159,13 +166,18 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	log.Info("controller unpublish volume called")
 
 	// check if volume exist before trying to detach it
-	_, err := d.iaas.GetVolume(ctx, req.VolumeId)
+	currentVolume, err := d.iaas.GetVolume(ctx, req.VolumeId)
 	if err != nil {
-		if err == client.ErrNotFound {
+		if client.IsNotFound(err) {
 			log.Info("assuming volume is detached because it does not exist")
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
 		}
 		return nil, err
+	}
+
+	if currentVolume != nil && len(currentVolume.Attachments) == 0 && strings.EqualFold(currentVolume.Status, "available") {
+		log.With("volume_id", req.VolumeId).Warn("volume is not attached to any machine")
+		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
 
 	if d.kubeConfig != "" {
@@ -188,7 +200,7 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	// check if machine exists before trying to detach the volume from the machine
 	_, err = d.iaas.GetMachine(ctx, attachToIdentity)
 	if err != nil {
-		if err == client.ErrNotFound {
+		if client.IsNotFound(err) {
 			// fallback to the node name
 			machines, err := d.iaas.ListMachines(ctx, &iaas.ListMachinesRequest{
 				Filters: []filters.Filter{
@@ -228,6 +240,10 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		ResourceIdentity: attachToIdentity,
 		ResourceType:     "cloud_virtual_machine",
 	}); err != nil {
+		if client.IsNotFound(err) {
+			log.With("error", err).Warn("failed to detach volume, assuming volume is detached")
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
 		return nil, err
 	}
 
@@ -243,6 +259,10 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		}
 		return false, nil
 	}); err != nil {
+		if client.IsNotFound(err) {
+			log.With("error", err).Warn("volume returned not found, assuming volume is deleted and detached")
+			return &csi.ControllerUnpublishVolumeResponse{}, nil
+		}
 		return nil, fmt.Errorf("failed to detach volume: %w", err)
 	}
 

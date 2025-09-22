@@ -18,7 +18,6 @@ package driver
 
 import (
 	"context"
-	"errors"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 
@@ -57,7 +56,7 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	log.With("snapshot_identity", snapshot.Identity).Info("snapshot is ready")
 	snapshot, err = d.iaas.GetSnapshot(ctx, snapshot.Identity)
 	if err != nil {
-		if errors.Is(err, client.ErrNotFound) {
+		if client.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, "snapshot not found")
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -177,7 +176,7 @@ func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequ
 
 	err := d.iaas.DeleteSnapshot(ctx, req.GetSnapshotId())
 	if err != nil {
-		if errors.Is(err, client.ErrNotFound) {
+		if client.IsNotFound(err) {
 			return &csi.DeleteSnapshotResponse{}, nil
 		}
 		return nil, status.Error(codes.Internal, err.Error())
