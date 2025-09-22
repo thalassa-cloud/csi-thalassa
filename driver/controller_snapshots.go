@@ -107,7 +107,7 @@ func (d *Driver) getOrCreateSnapshot(ctx context.Context, req *csi.CreateSnapsho
 				Value: d.region,
 			},
 			&filters.FilterKeyValue{
-				Key:   filters.FilterKey("name"),
+				Key:   filters.FilterKey("identity"),
 				Value: req.GetSourceVolumeId(),
 			},
 		},
@@ -117,7 +117,26 @@ func (d *Driver) getOrCreateSnapshot(ctx context.Context, req *csi.CreateSnapsho
 	}
 
 	if len(volumes) == 0 {
-		return nil, status.Errorf(codes.NotFound, "volume with name %q not found", req.GetSourceVolumeId())
+		log.With("volume_id", req.GetSourceVolumeId()).Warn("volume by identity not found, trying to find by name")
+		// fall back to the volume name
+		volumes, err = d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
+			Filters: []filters.Filter{
+				&filters.FilterKeyValue{
+					Key:   filters.FilterRegion,
+					Value: d.region,
+				},
+				&filters.FilterKeyValue{
+					Key:   filters.FilterKey("name"),
+					Value: req.GetSourceVolumeId(),
+				},
+			},
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to list volumes: %s", err)
+		}
+		if len(volumes) == 0 {
+			return nil, status.Errorf(codes.NotFound, "volume with name %q not found", req.GetSourceVolumeId())
+		}
 	}
 
 	if len(volumes) > 1 {
