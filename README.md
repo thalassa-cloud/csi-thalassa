@@ -22,7 +22,8 @@ The following table describes the required Thalassa Cloud CSI driver version per
 | ------------------ | --------------------------------- |
 | 1.31               | v0.1.0+                           |
 | 1.32               | v0.1.0+                           |
-| 1.33               | v0.1.0+                           |
+| 1.33               | v0.5.0+                           |
+| 1.34               | v0.5.0+                           |
 
 **Note:**
 
