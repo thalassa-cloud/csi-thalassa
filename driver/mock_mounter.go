@@ -54,6 +54,10 @@ func NewMockMounter() *MockMounter {
 	}
 }
 
+func (m *MockMounter) GetKMounter() mount.Interface {
+	return nil
+}
+
 // GetDeviceByID implements DeviceManager
 func (m *MockMounter) GetDeviceByID(volumeID string) (string, error) {
 	if device, ok := m.MountPoints[volumeID]; ok {
