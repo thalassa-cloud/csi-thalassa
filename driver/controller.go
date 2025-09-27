@@ -119,9 +119,12 @@ func NewDriver(p NewDriverParams) (*Driver, error) {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	log = log.With("region", region, "node_id", nodeId, "version", version.GetVersion())
 
+	userAgent := fmt.Sprintf("github.com/thalassa-cloud/csi-thalassa/%s", version.GetVersion())
+
 	opts := []client.Option{
 		client.WithBaseURL(p.ThalassaURL),
 		client.WithOrganisation(p.ThalassaOrganisation),
+		client.WithUserAgent(userAgent),
 	}
 
 	if p.ThalassaInsecure {
