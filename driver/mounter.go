@@ -188,6 +188,11 @@ func (m *mounter) Mount(source, target, fsType string, opts ...string) error {
 		return errors.New("target is not specified for mounting the volume")
 	}
 
+	// Check if source device exists and is accessible
+	if _, err := os.Stat(source); err != nil {
+		return fmt.Errorf("source device %q does not exist or is not accessible: %v", source, err)
+	}
+
 	// This is a raw block device mount. Create the mount point as a file
 	// since bind mount device node requires it to be a file
 	if fsType == "" {
