@@ -330,14 +330,25 @@ func (d *Driver) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeS
 		return nil, status.Errorf(codes.NotFound, "volume path %q is not mounted", volumePath)
 	}
 
-	isBlock, err := d.mounter.IsBlockDevice(volumePath)
-	if err != nil {
+	// For block volumes, we need to get the actual device path, not the target path
+	var actualPath string
+	var isBlock bool
+	if isBlock, err = d.mounter.IsBlockDevice(volumePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to determine if %q is block device: %s", volumePath, err)
+	} else if isBlock {
+		// For block volumes, get the actual device path from the mount
+		devicePath, err := d.mounter.GetDeviceName(d.mounter.GetKMounter(), volumePath)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to get device name for block volume %q: %s", volumePath, err)
+		}
+		actualPath = devicePath
+	} else {
+		actualPath = volumePath
 	}
 
-	stats, err := d.mounter.GetStatistics(volumePath)
+	stats, err := d.mounter.GetStatistics(actualPath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to retrieve capacity statistics for volume path %q: %s", volumePath, err)
+		return nil, status.Errorf(codes.Internal, "failed to retrieve capacity statistics for volume path %q: %s", actualPath, err)
 	}
 
 	// only can retrieve total capacity for a block device

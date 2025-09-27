@@ -103,6 +103,8 @@ type MountManager interface {
 	IsMounted(target string) (bool, error)
 	// GetDeviceName gets the device name for a mount path
 	GetDeviceName(mounter mount.Interface, mountPath string) (string, error)
+	// GetKMounter returns the k8s mount interface
+	GetKMounter() mount.Interface
 }
 
 // StatisticsManager handles volume statistics
@@ -217,8 +219,6 @@ func (m *mounter) Mount(source, target, fsType string, opts ...string) error {
 		}
 	}
 
-	// By default, xfs does not allow mounting of two volumes with the same filesystem uuid.
-	// Force ignore this uuid to be able to mount volume + its clone / restored snapshot on the same node.
 	if fsType == "xfs" {
 		opts = append(opts, "nouuid")
 	}
@@ -365,6 +365,11 @@ func (m *mounter) IsMounted(target string) (bool, error) {
 func (m *mounter) GetDeviceName(mounter mount.Interface, mountPath string) (string, error) {
 	devicePath, _, err := mount.GetDeviceNameFromMount(mounter, mountPath)
 	return devicePath, err
+}
+
+// GetKMounter returns the k8s mount interface for use with GetDeviceName
+func (m *mounter) GetKMounter() mount.Interface {
+	return m.kMounter
 }
 
 func (m *mounter) GetStatistics(volumePath string) (volumeStatistics, error) {
