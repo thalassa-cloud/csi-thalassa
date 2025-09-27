@@ -127,6 +127,11 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	annotations := iaas.Annotations{
 		"k8s.thalassa.cloud/description": "Provisioned by Thalassa CSI driver",
 	}
+
+	if req.Parameters["fstype"] != "" {
+		annotations["k8s.thalassa.cloud/fstype"] = req.Parameters["fstype"]
+	}
+
 	for k, v := range d.CustomLabels {
 		if _, ok := labels[k]; !ok {
 			labels[k] = v
