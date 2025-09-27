@@ -18,11 +18,11 @@ FROM alpine:3.22.0
 # blkid: block device identification tool from util-linux
 RUN apk add --no-cache ca-certificates \
                        e2fsprogs \
+                       e2fsprogs-extra \
                        findmnt \
                        xfsprogs \
                        xfsprogs-extra \
                        blkid \
-                       e2fsprogs-extra \
                        cryptsetup
 
 ADD csi-thalassa /bin/
