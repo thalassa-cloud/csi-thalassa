@@ -61,6 +61,7 @@ var pluginCmd = &cobra.Command{
 				ThalassaURL:          viper.GetString("thalassa-url"),
 				ThalassaInsecure:     viper.GetBool("thalassa-insecure"),
 				Region:               viper.GetString("thalassa-region"),
+				ThalassaProject:      viper.GetString("thalassa-project"),
 
 				DriverName:           viper.GetString("driver-name"),
 				DebugAddr:            viper.GetString("debug-addr"),
@@ -87,6 +88,7 @@ var pluginCmd = &cobra.Command{
 				VolumeLimit:        viper.GetUint("volume-limit"),
 				NodeID:             viper.GetString("node-id"),
 				Region:             viper.GetString("thalassa-region"),
+				Project:            viper.GetString("thalassa-project"),
 				Cluster:            viper.GetString("cluster"),
 				Vpc:                viper.GetString("vpc"),
 			})
@@ -126,6 +128,7 @@ func init() {
 	pluginCmd.Flags().Bool("thalassa-insecure", false, "Use insecure connection to Thalassa Cloud API")
 	pluginCmd.Flags().String("thalassa-url", "https://api.thalassa.cloud/", "Thalassa Cloud API URL")
 	pluginCmd.Flags().String("thalassa-region", "", "Thalassa Cloud region slug or identity")
+	pluginCmd.Flags().String("thalassa-project", "", "Thalassa Cloud project ID")
 
 	pluginCmd.Flags().String("organisation", "", "Thalassa Cloud organisation")
 	pluginCmd.Flags().String("kube-config", "", "Path to kube config file")
@@ -152,6 +155,7 @@ func init() {
 	viper.BindPFlag("thalassa-insecure", pluginCmd.Flags().Lookup("thalassa-insecure"))
 	viper.BindPFlag("thalassa-url", pluginCmd.Flags().Lookup("thalassa-url"))
 	viper.BindPFlag("thalassa-region", pluginCmd.Flags().Lookup("thalassa-region"))
+	viper.BindPFlag("thalassa-project", pluginCmd.Flags().Lookup("thalassa-project"))
 	viper.BindPFlag("organisation", pluginCmd.Flags().Lookup("organisation"))
 	viper.BindPFlag("kube-config", pluginCmd.Flags().Lookup("kube-config"))
 

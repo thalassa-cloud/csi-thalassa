@@ -46,6 +46,7 @@ type NewNodeDriverParams struct {
 	NodeID             string
 	Region             string
 	Vpc                string
+	Project            string
 	Cluster            string
 
 	CustomLabels      string

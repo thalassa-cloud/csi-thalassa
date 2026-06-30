@@ -61,6 +61,7 @@ type Driver struct {
 
 	vpc             string
 	clusterIdentity string
+	projectId       string
 
 	srv     *grpc.Server
 	httpSrv *http.Server
@@ -91,6 +92,7 @@ type NewDriverParams struct {
 	ThalassaClientSecret string
 	ThalassaURL          string
 	ThalassaOrganisation string
+	ThalassaProject      string
 	ThalassaInsecure     bool
 	Region               string
 
@@ -130,6 +132,10 @@ func NewDriver(p NewDriverParams) (*Driver, error) {
 	if p.ThalassaInsecure {
 		log.Warn("Insecure mode for API access enabled. Only use this in development environments.")
 		opts = append(opts, client.WithInsecure())
+	}
+
+	if p.ThalassaProject != "" {
+		opts = append(opts, client.WithProject(p.ThalassaProject))
 	}
 
 	if p.ThalassaClientID != "" && p.ThalassaClientSecret != "" {
@@ -172,6 +178,7 @@ func NewDriver(p NewDriverParams) (*Driver, error) {
 		healthChecker:         healthChecker,
 		vpc:                   p.Vpc,
 		clusterIdentity:       p.Cluster,
+		projectId:             p.ThalassaProject,
 	}, nil
 }
 
