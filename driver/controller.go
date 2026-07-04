@@ -163,7 +163,10 @@ func NewDriver(p NewDriverParams) (*Driver, error) {
 		return nil, fmt.Errorf("failed to initialize Thalassa IaaS client: %s", err)
 	}
 
-	healthChecker := healthcheck.NewHealthChecker(&tcHealthChecker{tcClient: tcClient})
+	healthChecker := healthcheck.NewHealthChecker(&tcHealthChecker{
+		iaas:   iaasClient,
+		region: region,
+	})
 
 	return &Driver{
 		name:                  driverName,

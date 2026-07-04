@@ -18,12 +18,19 @@ package driver
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/thalassa-cloud/client-go/pkg/client"
+	"github.com/thalassa-cloud/client-go/filters"
+	"github.com/thalassa-cloud/client-go/iaas"
 )
 
+type iaasHealthClient interface {
+	ListRegions(ctx context.Context, listRequest *iaas.ListRegionsRequest) ([]iaas.Region, error)
+}
+
 type tcHealthChecker struct {
-	tcClient client.Client
+	iaas   iaasHealthClient
+	region string
 }
 
 func (c *tcHealthChecker) Name() string {
@@ -31,5 +38,19 @@ func (c *tcHealthChecker) Name() string {
 }
 
 func (c *tcHealthChecker) Check(ctx context.Context) error {
+	request := &iaas.ListRegionsRequest{}
+	if c.region != "" {
+		request.Filters = []filters.Filter{
+			&filters.FilterKeyValue{
+				Key:   filters.FilterRegion,
+				Value: c.region,
+			},
+		}
+	}
+
+	if _, err := c.iaas.ListRegions(ctx, request); err != nil {
+		return fmt.Errorf("thalassa API health check failed: %w", err)
+	}
+
 	return nil
 }
