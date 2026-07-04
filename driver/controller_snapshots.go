@@ -201,7 +201,6 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 		listResp.Entries = append(listResp.Entries, &csi.ListSnapshotsResponse_Entry{
 			Snapshot: mapped,
 		})
-		listResp.NextToken = snapshot.Identity
 
 		log.With("num_snapshot_entries", len(listResp.Entries)).Info("listing snapshots")
 		return listResp, nil
@@ -227,7 +226,20 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	for _, snapshot := range snapshots {
+	identities := make([]string, len(snapshots))
+	snapshotsByIdentity := make(map[string]iaas.Snapshot, len(snapshots))
+	for i, snapshot := range snapshots {
+		identities[i] = snapshot.Identity
+		snapshotsByIdentity[snapshot.Identity] = snapshot
+	}
+
+	sortedIdentities, start, end, nextToken, err := paginateIdentities(identities, req.StartingToken, req.MaxEntries)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, identity := range sortedIdentities[start:end] {
+		snapshot := snapshotsByIdentity[identity]
 		mapped, err := mapToCSISnapshot(&snapshot)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
@@ -236,8 +248,9 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 			Snapshot: mapped,
 		})
 	}
+	listResp.NextToken = nextToken
 
-	log.With("num_snapshot_entries", len(listResp.Entries)).Info("listing snapshots")
+	log.With("num_snapshot_entries", len(listResp.Entries), "next_token", listResp.NextToken).Info("listing snapshots")
 	return listResp, nil
 }
 

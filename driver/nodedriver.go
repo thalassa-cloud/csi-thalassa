@@ -55,7 +55,7 @@ type NewNodeDriverParams struct {
 
 // NewDriver returns a CSI plugin that contains the necessary gRPC
 // interfaces to interact with Kubernetes over unix domain sockets for
-// managing DigitalOcean Block Storage
+// managing Thalassa Block Storage
 func NewNodeDriver(p NewNodeDriverParams) (*Driver, error) {
 	driverName := p.DriverName
 	if driverName == "" {

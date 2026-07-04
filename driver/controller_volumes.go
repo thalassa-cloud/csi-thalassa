@@ -250,19 +250,27 @@ func (d *Driver) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (
 				Key:   filters.FilterRegion,
 				Value: d.region,
 			},
-			// &filters.LabelFilter{
-			// 	MatchLabels: map[string]string{
-			// 		// "csi-driver": "thalassa",
-			// 	},
-			// },
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list volumes: %w", err)
+		return nil, status.Errorf(codes.Internal, "failed to list volumes: %s", err)
 	}
 
-	var entries []*csi.ListVolumesResponse_Entry
-	for _, vol := range volumes {
+	identities := make([]string, len(volumes))
+	volumesByIdentity := make(map[string]iaas.Volume, len(volumes))
+	for i, vol := range volumes {
+		identities[i] = vol.Identity
+		volumesByIdentity[vol.Identity] = vol
+	}
+
+	sortedIdentities, start, end, nextToken, err := paginateIdentities(identities, req.StartingToken, maxEntries)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]*csi.ListVolumesResponse_Entry, 0, end-start)
+	for _, identity := range sortedIdentities[start:end] {
+		vol := volumesByIdentity[identity]
 		attachedMachinesIdentities := make([]string, 0, len(vol.Attachments))
 		for _, attachment := range vol.Attachments {
 			attachedMachinesIdentities = append(attachedMachinesIdentities, attachment.AttachedToIdentity)
@@ -280,10 +288,11 @@ func (d *Driver) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (
 	}
 
 	resp := &csi.ListVolumesResponse{
-		Entries: entries,
+		Entries:   entries,
+		NextToken: nextToken,
 	}
 
-	log.With("num_volume_entries", len(resp.Entries)).Info("listing volumes")
+	log.With("num_volume_entries", len(resp.Entries), "next_token", resp.NextToken).Info("listing volumes")
 	return resp, nil
 }
 
