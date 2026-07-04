@@ -75,6 +75,7 @@ func NewNodeDriver(p NewNodeDriverParams) (*Driver, error) {
 		nodeID:                nodeId,
 		publishInfoVolumeName: driverName + "/volume-name",
 		region:                p.Region,
+		validateAttachment:    p.ValidateAttachment,
 		volumeLimit:           p.VolumeLimit,
 		vpc:                   p.Vpc,
 		clusterIdentity:       p.Cluster,
