@@ -135,31 +135,7 @@ func init() {
 
 	pluginCmd.Flags().String("cluster", "", "Cluster identity of the cluster. This is used to label volumes with the cluster identity")
 	pluginCmd.Flags().String("vpc", "", "VPC identity in which the cluster is deployed. This is used for discovering virtual machines to attach volumes to")
-	// Bind flags to viper
-
-	viper.BindPFlag("mode", pluginCmd.Flags().Lookup("mode"))
-
-	viper.BindPFlag("csi-endpoint", pluginCmd.Flags().Lookup("csi-endpoint"))
-	viper.BindPFlag("driver-name", pluginCmd.Flags().Lookup("driver-name"))
-	viper.BindPFlag("debug-addr", pluginCmd.Flags().Lookup("debug-addr"))
-	viper.BindPFlag("validate-attachment", pluginCmd.Flags().Lookup("validate-attachment"))
-
-	viper.BindPFlag("volume-limit", pluginCmd.Flags().Lookup("volume-limit"))
-	viper.BindPFlag("node-id", pluginCmd.Flags().Lookup("node-id"))
-	viper.BindPFlag("custom-labels", pluginCmd.Flags().Lookup("custom-labels"))
-	viper.BindPFlag("custom-annotations", pluginCmd.Flags().Lookup("custom-annotations"))
-
-	viper.BindPFlag("thalassa-token", pluginCmd.Flags().Lookup("thalassa-token"))
-	viper.BindPFlag("thalassa-client-id", pluginCmd.Flags().Lookup("thalassa-client-id"))
-	viper.BindPFlag("thalassa-client-secret", pluginCmd.Flags().Lookup("thalassa-client-secret"))
-	viper.BindPFlag("thalassa-insecure", pluginCmd.Flags().Lookup("thalassa-insecure"))
-	viper.BindPFlag("thalassa-url", pluginCmd.Flags().Lookup("thalassa-url"))
-	viper.BindPFlag("thalassa-region", pluginCmd.Flags().Lookup("thalassa-region"))
-	viper.BindPFlag("thalassa-project", pluginCmd.Flags().Lookup("thalassa-project"))
-	viper.BindPFlag("organisation", pluginCmd.Flags().Lookup("organisation"))
-	viper.BindPFlag("kube-config", pluginCmd.Flags().Lookup("kube-config"))
-
-	viper.BindPFlag("cluster", pluginCmd.Flags().Lookup("cluster"))
-	viper.BindPFlag("vpc", pluginCmd.Flags().Lookup("vpc"))
-
+	if err := viper.BindPFlags(pluginCmd.Flags()); err != nil {
+		panic(fmt.Errorf("failed to bind plugin flags: %w", err))
+	}
 }

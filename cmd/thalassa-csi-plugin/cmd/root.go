@@ -48,8 +48,9 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.thalassa-csi-plugin.yaml)")
 
-	// Bind flags to viper
-	viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
+	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
+		panic(fmt.Errorf("failed to bind root flags: %w", err))
+	}
 }
 
 // initConfig reads in config file and ENV variables if set.

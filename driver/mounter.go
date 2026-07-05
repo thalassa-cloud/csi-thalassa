@@ -154,7 +154,7 @@ func (m *mounter) Format(source, fsType string) error {
 		return err
 	}
 
-	mkfsArgs := []string{}
+	mkfsArgs := make([]string, 0, 1)
 
 	if fsType == "" {
 		return errors.New("fs type is not specified for formatting the volume")
@@ -208,7 +208,9 @@ func (m *mounter) Mount(source, target, fsType string, opts ...string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create target file for raw block bind mount: %v", err)
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("failed to close target file for raw block bind mount: %v", err)
+		}
 	} else {
 		mountArgs = append(mountArgs, "-t", fsType)
 
