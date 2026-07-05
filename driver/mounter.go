@@ -264,8 +264,9 @@ func (m *mounter) IsAttached(source string) error {
 		return fmt.Errorf("error reading the device state file %q: %s", deviceStateFilePath, err)
 	}
 
-	if string(deviceStateFileContent) != strings.TrimSpace(runningState) {
-		return fmt.Errorf("error comparing the state file content, expected: %s, got: %s", runningState, string(deviceStateFileContent))
+	state := strings.TrimSpace(string(deviceStateFileContent))
+	if state != runningState {
+		return fmt.Errorf("error comparing the state file content, expected: %s, got: %q", runningState, state)
 	}
 
 	return nil
