@@ -35,10 +35,10 @@ func TestPaginateIdentities(t *testing.T) {
 			wantEnd:       4,
 		},
 		{
-			name:          "returns all entries when max entries is zero",
-			maxEntries:    0,
-			wantStart:     0,
-			wantEnd:       4,
+			name:       "returns all entries when max entries is zero",
+			maxEntries: 0,
+			wantStart:  0,
+			wantEnd:    4,
 		},
 		{
 			name:          "rejects invalid starting token",

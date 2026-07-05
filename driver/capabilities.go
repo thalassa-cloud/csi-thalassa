@@ -76,7 +76,7 @@ func (d *Driver) ControllerGetCapabilities(ctx context.Context, req *csi.Control
 		}
 	}
 
-	var caps []*csi.ControllerServiceCapability
+	caps := make([]*csi.ControllerServiceCapability, 0, 7)
 	for _, cap := range []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,

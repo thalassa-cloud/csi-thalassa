@@ -19,6 +19,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -29,80 +30,46 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// CreateVolume creates a new volume from the given request
-func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	if req.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
+func validateCreateVolumeAccessibility(req *csi.CreateVolumeRequest, region string) error {
+	if req.AccessibilityRequirements == nil {
+		return nil
 	}
 
-	if len(req.VolumeCapabilities) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "CreateVolume Volume capabilities must be provided")
-	}
+	for _, t := range req.AccessibilityRequirements.Requisite {
+		regionSegment, ok := t.Segments["region"]
+		if !ok {
+			continue
+		}
 
-	if violations := validateCapabilities(req.VolumeCapabilities); len(violations) > 0 {
-		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume capabilities cannot be satisified: %s", strings.Join(violations, "; ")))
-	}
-
-	size, err := getStorageSizeFromCapacityRange(req.CapacityRange)
-	if err != nil {
-		return nil, status.Errorf(codes.OutOfRange, "invalid capacity range: %v", err)
-	}
-
-	if req.AccessibilityRequirements != nil {
-		for _, t := range req.AccessibilityRequirements.Requisite {
-			region, ok := t.Segments["region"]
-			if !ok {
-				continue // nothing to do
-			}
-
-			if region != d.region {
-				return nil, status.Errorf(codes.ResourceExhausted, "volume can be only created in region: %q, got: %q", d.region, region)
-			}
+		if regionSegment != region {
+			return status.Errorf(codes.ResourceExhausted, "volume can be only created in region: %q, got: %q", region, regionSegment)
 		}
 	}
 
-	volumeName := req.Name
+	return nil
+}
 
-	volumeIdentity := req.Parameters["volume-identity"]
-	if volumeIdentity == "" {
-		volumeIdentity = volumeName
+func createVolumeResponseFromExisting(volume *iaas.Volume, size int64) (*csi.CreateVolumeResponse, error) {
+	if int64(volume.Size)*giB != size {
+		return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("invalid option requested size: %d", size))
 	}
 
-	log := d.log.With("volume_name", volumeName, "storage_size_giga_bytes", size/giB, "method", "create_volume", "volume_capabilities", req.VolumeCapabilities)
-	log.Info("creating volume")
+	return &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			VolumeId:      volume.Identity,
+			CapacityBytes: int64(volume.Size) * giB,
+		},
+	}, nil
+}
 
-	log.With("volume_identity", volumeIdentity).Info("getting volume to check if it already exists")
-	// get volume first, if it's created do no thing
-	volume, err := d.iaas.GetVolume(ctx, volumeIdentity)
-	if err != nil && !client.IsNotFound(err) {
-		log.Error("failed to get volume to check if it already exists", "error", err)
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
-	if volume != nil {
-		log.With("volume_identity", volume.Identity).Info("volume already created")
-
-		if int64(volume.Size)*giB != size {
-			return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("invalid option requested size: %d", size))
-		}
-
-		log.Info("volume already created")
-		return &csi.CreateVolumeResponse{
-			Volume: &csi.Volume{
-				VolumeId:      volume.Identity,
-				CapacityBytes: int64(volume.Size) * giB,
-			},
-		}, nil
-	}
-
-	volumeTypeParam := req.Parameters["volume-type"]
+func (d *Driver) resolveVolumeTypeIdentity(ctx context.Context, volumeTypeParam string) (string, error) {
 	if volumeTypeParam == "" {
 		volumeTypeParam = "block"
 	}
 
 	volumeTypes, err := d.iaas.ListVolumeTypes(ctx, nil)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return "", status.Error(codes.Internal, err.Error())
 	}
 
 	volumeTypeIdentity, err := getVolumeTypeByFilters(volumeTypes,
@@ -114,12 +81,16 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		},
 	)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return "", status.Error(codes.Internal, err.Error())
 	}
 	if volumeTypeIdentity == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid volume type: %q: volume type not found", volumeTypeParam)
+		return "", status.Errorf(codes.InvalidArgument, "invalid volume type: %q: volume type not found", volumeTypeParam)
 	}
 
+	return volumeTypeIdentity, nil
+}
+
+func (d *Driver) buildCreateVolumeRequest(req *csi.CreateVolumeRequest, volumeName string, size int64, volumeTypeIdentity string) iaas.CreateVolume {
 	labels := iaas.Labels{
 		"k8s.thalassa.cloud/csi-driver":      "true",
 		"k8s.thalassa.cloud/csi-driver-name": d.name,
@@ -157,25 +128,96 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		volumeReq.Labels["k8s.thalassa.cloud/cluster-identity"] = d.clusterIdentity
 	}
 
-	contentSource := req.GetVolumeContentSource()
-	if contentSource != nil && contentSource.GetSnapshot() != nil {
-		snapshotID := contentSource.GetSnapshot().GetSnapshotId()
-		if snapshotID == "" {
-			return nil, status.Error(codes.InvalidArgument, "snapshot ID is empty")
+	return volumeReq
+}
+
+func (d *Driver) applySnapshotRestore(ctx context.Context, log *slog.Logger, contentSource *csi.VolumeContentSource, volumeReq *iaas.CreateVolume) error {
+	if contentSource == nil || contentSource.GetSnapshot() == nil {
+		return nil
+	}
+
+	snapshotID := contentSource.GetSnapshot().GetSnapshotId()
+	if snapshotID == "" {
+		return status.Error(codes.InvalidArgument, "snapshot ID is empty")
+	}
+
+	log.With("snapshot_id", snapshotID).Info("getting snapshot for restore")
+
+	_, err := d.iaas.GetSnapshot(ctx, snapshotID)
+	if err != nil {
+		if client.IsNotFound(err) {
+			return status.Error(codes.NotFound, "snapshot not found for restore")
 		}
+		return status.Error(codes.Internal, err.Error())
+	}
 
-		log.With("snapshot_id", snapshotID).Info("getting snapshot for restore")
+	log.With("snapshot_id", snapshotID).Info("using snapshot to create volume")
+	volumeReq.RestoreFromSnapshotId = &snapshotID
 
-		_, err = d.iaas.GetSnapshot(ctx, snapshotID)
+	return nil
+}
+
+// CreateVolume creates a new volume from the given request
+func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Name must be provided")
+	}
+
+	if len(req.VolumeCapabilities) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "CreateVolume Volume capabilities must be provided")
+	}
+
+	if violations := validateCapabilities(req.VolumeCapabilities); len(violations) > 0 {
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("volume capabilities cannot be satisified: %s", strings.Join(violations, "; ")))
+	}
+
+	size, err := getStorageSizeFromCapacityRange(req.CapacityRange)
+	if err != nil {
+		return nil, status.Errorf(codes.OutOfRange, "invalid capacity range: %v", err)
+	}
+
+	if err := validateCreateVolumeAccessibility(req, d.region); err != nil {
+		return nil, err
+	}
+
+	volumeName := req.Name
+
+	volumeIdentity := req.Parameters["volume-identity"]
+	if volumeIdentity == "" {
+		volumeIdentity = volumeName
+	}
+
+	log := d.log.With("volume_name", volumeName, "storage_size_giga_bytes", size/giB, "method", "create_volume", "volume_capabilities", req.VolumeCapabilities)
+	log.Info("creating volume")
+
+	log.With("volume_identity", volumeIdentity).Info("getting volume to check if it already exists")
+	// get volume first, if it's created do no thing
+	volume, err := d.iaas.GetVolume(ctx, volumeIdentity)
+	if err != nil && !client.IsNotFound(err) {
+		log.Error("failed to get volume to check if it already exists", "error", err)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if volume != nil {
+		log.With("volume_identity", volume.Identity).Info("volume already created")
+		resp, err := createVolumeResponseFromExisting(volume, size)
 		if err != nil {
-			if client.IsNotFound(err) {
-				return nil, status.Error(codes.NotFound, "snapshot not found for restore")
-			}
-			return nil, status.Error(codes.Internal, err.Error())
+			return nil, err
 		}
-		log.With("snapshot_id", snapshotID).Info("using snapshot to create volume")
+		log.Info("volume already created")
+		return resp, nil
+	}
 
-		volumeReq.RestoreFromSnapshotId = &snapshotID
+	volumeTypeIdentity, err := d.resolveVolumeTypeIdentity(ctx, req.Parameters["volume-type"])
+	if err != nil {
+		return nil, err
+	}
+
+	volumeReq := d.buildCreateVolumeRequest(req, volumeName, size, volumeTypeIdentity)
+
+	contentSource := req.GetVolumeContentSource()
+	if err := d.applySnapshotRestore(ctx, log, contentSource, &volumeReq); err != nil {
+		return nil, err
 	}
 
 	log.With("volume_req", volumeReq).Info("creating volume")
