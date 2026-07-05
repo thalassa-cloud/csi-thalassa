@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thalassa-csi-controller
+  namespace: ${CSI_NAMESPACE}
+  labels:
+    app.kubernetes.io/name: thalassa-csi
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: thalassa-csi
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: thalassa-csi
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: thalassa-csi-controller
+      securityContext:
+        fsGroup: 65534
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: csi-driver
+          image: ${CSI_IMAGE}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --mode=controller
+            - --csi-endpoint=unix:///var/lib/csi/sockets/pluginproxy/csi.sock
+            - --driver-name=${CSI_DRIVER_NAME}
+            - --thalassa-client-id=$(THALASSA_CLIENT_ID)
+            - --thalassa-client-secret=$(THALASSA_CLIENT_SECRET)
+            - --thalassa-url=$(THALASSA_API_URL)
+            - --organisation=$(THALASSA_ORGANISATION_ID)
+            - --thalassa-region=${THALASSA_REGION}
+            - --thalassa-project=${THALASSA_PROJECT_ID}
+            - --cluster=${THALASSA_CLUSTER_ID}
+            - --vpc=${THALASSA_VPC_ID}
+            - --debug-addr=:10301
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: THALASSA_API_URL
+              value: ${THALASSA_API_URL}
+            - name: THALASSA_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: thalassa-cloud-credentials
+                  key: client_id
+            - name: THALASSA_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: thalassa-cloud-credentials
+                  key: client_secret
+            - name: THALASSA_ORGANISATION_ID
+              value: ${THALASSA_ORGANISATION_ID}
+          resources: {}
+          ports:
+            - containerPort: 10301
+              name: healthz
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+            - name: service-account
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.2.0
+          args:
+            - --csi-address=$(ADDRESS)
+            - --default-fstype=ext4
+            - --v=5
+            - --timeout=3m
+            - --retry-interval-max=1m
+          resources: {}
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-attacher
+          image: registry.k8s.io/sig-storage/csi-attacher:v4.8.1
+          args:
+            - --csi-address=$(ADDRESS)
+            - --v=5
+            - --reconcile-sync=30m
+            - --timeout=3m
+            - --retry-interval-max=1m
+          resources: {}
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-resizer
+          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.2
+          args:
+            - --csi-address=$(ADDRESS)
+            - --v=5
+            - --handle-volume-inuse-error=false
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          resources: {}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-snapshotter
+          image: registry.k8s.io/sig-storage/csi-snapshotter:v8.2.0
+          args:
+            - --v=5
+            - --csi-address=/csi/csi.sock
+            - --timeout=3m
+          resources: {}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: service-account
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt

@@ -1,0 +1,25 @@
+StorageClass:
+  FromName: true
+SnapshotClass:
+  FromName: true
+DriverInfo:
+  Name: csi.k8s.e2e.thalassa.cloud
+  Capabilities:
+    block: true
+    controllerExpansion: true
+    nodeExpansion: true
+    exec: true
+    multipods: true
+    persistence: true
+    snapshotDataSource: true
+    topology: false
+    onlineExpansion: true
+    singleNodeVolume: true
+  SupportedFsType:
+    ext3: {}
+    ext4: {}
+    xfs: {}
+  # TopologyKeys:
+  #   - topology.kubernetes.io/zone
+InlineVolumes:
+- Attributes: {}
