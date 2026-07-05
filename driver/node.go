@@ -81,6 +81,10 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	target := req.StagingTargetPath
 
 	mnt := req.VolumeCapability.GetMount()
+	if mnt == nil {
+		return nil, status.Error(codes.InvalidArgument, "NodeStageVolume Volume Capability Mount must be provided")
+	}
+
 	options := mnt.MountFlags
 
 	fsType := "ext4"

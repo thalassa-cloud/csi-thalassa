@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: thalassa-csi-node
+  namespace: ${E2E_NAMESPACE}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: thalassa-csi
+      app.kubernetes.io/component: node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: thalassa-csi
+        app.kubernetes.io/component: node
+    spec:
+      serviceAccountName: thalassa-csi-node
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: csi-driver
+          image: ${E2E_IMAGE}
+          imagePullPolicy: Always
+          args:
+            - --mode=node
+            - --csi-endpoint=unix:///csi/csi.sock
+            - --driver-name=${E2E_DRIVER_NAME}
+            - --node-id=$(NODE_ID)
+            - --thalassa-region=${E2E_REGION}
+            - --thalassa-project=${THALASSA_PROJECT_ID}
+            - --cluster=${E2E_CLUSTER_ID}
+            - --vpc=${E2E_VPC_ID}
+            - --validate-attachment=true
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: Bidirectional
+            - name: device-dir
+              mountPath: /dev
+            - name: run-mount
+              mountPath: /run/mount
+        - name: csi-node-driver-registrar
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.13.0
+          args:
+            - --v=5
+            - --csi-address=/csi/csi.sock
+            - --kubelet-registration-path=/var/lib/kubelet/plugins/${E2E_DRIVER_NAME}/csi.sock
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/${E2E_DRIVER_NAME}/
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: kubelet-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: device-dir
+          hostPath:
+            path: /dev
+        - name: run-mount
+          hostPath:
+            path: /run/mount

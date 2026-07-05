@@ -108,7 +108,7 @@ type NewDriverParams struct {
 
 // NewDriver returns a CSI plugin that contains the necessary gRPC
 // interfaces to interact with Kubernetes over unix domain sockets for
-// managing DigitalOcean Block Storage
+// managing Thalassa Block Storage
 func NewDriver(p NewDriverParams) (*Driver, error) {
 	driverName := p.DriverName
 	if driverName == "" {
@@ -163,7 +163,10 @@ func NewDriver(p NewDriverParams) (*Driver, error) {
 		return nil, fmt.Errorf("failed to initialize Thalassa IaaS client: %s", err)
 	}
 
-	healthChecker := healthcheck.NewHealthChecker(&tcHealthChecker{tcClient: tcClient})
+	healthChecker := healthcheck.NewHealthChecker(&tcHealthChecker{
+		iaas:   iaasClient,
+		region: region,
+	})
 
 	return &Driver{
 		name:                  driverName,

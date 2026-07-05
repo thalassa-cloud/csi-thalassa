@@ -46,7 +46,7 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	}
 
 	if req.Readonly {
-		return nil, status.Error(codes.AlreadyExists, "read only Volumes are not supported")
+		return nil, status.Error(codes.InvalidArgument, "read only volumes are not supported")
 	}
 
 	log := d.log.With("volume_id", req.VolumeId, "node_id", req.NodeId, "method", "controller_publish_volume")
@@ -215,8 +215,7 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 				},
 			})
 			if err != nil {
-				log.With("error", err).Warn("failed to list machines, assuming volume is detached")
-				return &csi.ControllerUnpublishVolumeResponse{}, nil
+				return nil, fmt.Errorf("failed to list machines: %w", err)
 			}
 			found := false
 			for _, machine := range machines {
@@ -231,8 +230,7 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 				return &csi.ControllerUnpublishVolumeResponse{}, nil
 			}
 		} else {
-			log.With("error", err).Warn("failed to get machine, assuming volume is detached")
-			return &csi.ControllerUnpublishVolumeResponse{}, nil
+			return nil, fmt.Errorf("failed to get machine: %w", err)
 		}
 	}
 

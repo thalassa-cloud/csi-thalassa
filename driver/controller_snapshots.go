@@ -42,6 +42,9 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 
 	snapshot, err := d.getOrCreateSnapshot(ctx, req)
 	if err != nil {
+		if _, ok := status.FromError(err); ok {
+			return nil, err
+		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if snapshot == nil {
@@ -94,57 +97,32 @@ func (d *Driver) getOrCreateSnapshot(ctx context.Context, req *csi.CreateSnapsho
 		return nil, status.Errorf(codes.Internal, "failed to list snapshots: %s", err)
 	}
 	for _, snapshot := range snapshots {
-		if snapshot.Name == req.GetName() {
-			return &snapshot, nil
+		if snapshot.Name != req.GetName() {
+			continue
 		}
+
+		resolvedSourceVolumeIdentity, resolveErr := d.resolveVolumeIdentity(ctx, req.GetSourceVolumeId())
+		if resolveErr != nil {
+			if st, ok := status.FromError(resolveErr); ok && st.Code() == codes.NotFound {
+				if snapshotSourceVolumeMatches(req.GetSourceVolumeId(), "", &snapshot) {
+					return &snapshot, nil
+				}
+				return nil, status.Errorf(codes.AlreadyExists, "snapshot %q already exists with a different source volume", req.GetName())
+			}
+			return nil, resolveErr
+		}
+
+		if !snapshotSourceVolumeMatches(req.GetSourceVolumeId(), resolvedSourceVolumeIdentity, &snapshot) {
+			return nil, status.Errorf(codes.AlreadyExists, "snapshot %q already exists with a different source volume", req.GetName())
+		}
+
+		return &snapshot, nil
 	}
 
-	// If not found by name, try to find by volume name
-	volumes, err := d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
-		Filters: []filters.Filter{
-			&filters.FilterKeyValue{
-				Key:   filters.FilterRegion,
-				Value: d.region,
-			},
-			&filters.FilterKeyValue{
-				Key:   filters.FilterKey("identity"),
-				Value: req.GetSourceVolumeId(),
-			},
-		},
-	})
+	volumeIdentity, err := d.resolveVolumeIdentity(ctx, req.GetSourceVolumeId())
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list volumes: %s", err)
+		return nil, err
 	}
-
-	if len(volumes) == 0 {
-		log.With("volume_id", req.GetSourceVolumeId()).Warn("volume by identity not found, trying to find by name")
-		// fall back to the volume name
-		volumes, err = d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
-			Filters: []filters.Filter{
-				&filters.FilterKeyValue{
-					Key:   filters.FilterRegion,
-					Value: d.region,
-				},
-				&filters.FilterKeyValue{
-					Key:   filters.FilterKey("name"),
-					Value: req.GetSourceVolumeId(),
-				},
-			},
-		})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to list volumes: %s", err)
-		}
-		if len(volumes) == 0 {
-			return nil, status.Errorf(codes.NotFound, "volume with name %q not found", req.GetSourceVolumeId())
-		}
-	}
-
-	if len(volumes) > 1 {
-		return nil, status.Errorf(codes.Internal, "multiple volumes found with name %q", req.GetSourceVolumeId())
-	}
-	volume := volumes[0]
-
-	volumeIdentity := volume.Identity
 	log = log.With("resolved_volume_identity", volumeIdentity)
 	log.Info("resolved volume identity for snapshot creation")
 
@@ -223,7 +201,6 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 		listResp.Entries = append(listResp.Entries, &csi.ListSnapshotsResponse_Entry{
 			Snapshot: mapped,
 		})
-		listResp.NextToken = snapshot.Identity
 
 		log.With("num_snapshot_entries", len(listResp.Entries)).Info("listing snapshots")
 		return listResp, nil
@@ -249,7 +226,20 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	for _, snapshot := range snapshots {
+	identities := make([]string, len(snapshots))
+	snapshotsByIdentity := make(map[string]iaas.Snapshot, len(snapshots))
+	for i, snapshot := range snapshots {
+		identities[i] = snapshot.Identity
+		snapshotsByIdentity[snapshot.Identity] = snapshot
+	}
+
+	sortedIdentities, start, end, nextToken, err := paginateIdentities(identities, req.StartingToken, req.MaxEntries)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, identity := range sortedIdentities[start:end] {
+		snapshot := snapshotsByIdentity[identity]
 		mapped, err := mapToCSISnapshot(&snapshot)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
@@ -258,9 +248,86 @@ func (d *Driver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsReques
 			Snapshot: mapped,
 		})
 	}
+	listResp.NextToken = nextToken
 
-	log.With("num_snapshot_entries", len(listResp.Entries)).Info("listing snapshots")
+	log.With("num_snapshot_entries", len(listResp.Entries), "next_token", listResp.NextToken).Info("listing snapshots")
 	return listResp, nil
+}
+
+func (d *Driver) resolveVolumeIdentity(ctx context.Context, volumeID string) (string, error) {
+	volumes, err := d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
+		Filters: []filters.Filter{
+			&filters.FilterKeyValue{
+				Key:   filters.FilterRegion,
+				Value: d.region,
+			},
+			&filters.FilterKeyValue{
+				Key:   filters.FilterKey("identity"),
+				Value: volumeID,
+			},
+		},
+	})
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to list volumes: %s", err)
+	}
+
+	if len(volumes) == 0 {
+		volumes, err = d.iaas.ListVolumes(ctx, &iaas.ListVolumesRequest{
+			Filters: []filters.Filter{
+				&filters.FilterKeyValue{
+					Key:   filters.FilterRegion,
+					Value: d.region,
+				},
+				&filters.FilterKeyValue{
+					Key:   filters.FilterKey("name"),
+					Value: volumeID,
+				},
+			},
+		})
+		if err != nil {
+			return "", status.Errorf(codes.Internal, "failed to list volumes: %s", err)
+		}
+		if len(volumes) == 0 {
+			return "", status.Errorf(codes.NotFound, "volume with name %q not found", volumeID)
+		}
+	}
+
+	if len(volumes) > 1 {
+		return "", status.Errorf(codes.Internal, "multiple volumes found with name %q", volumeID)
+	}
+
+	return volumes[0].Identity, nil
+}
+
+func snapshotSourceVolumeIdentity(snapshot *iaas.Snapshot) string {
+	if snapshot.SourceVolume != nil {
+		return snapshot.SourceVolume.Identity
+	}
+	if snapshot.SourceVolumeId != nil {
+		return *snapshot.SourceVolumeId
+	}
+	return ""
+}
+
+func snapshotSourceVolumeMatches(requestedSourceVolumeID, resolvedSourceVolumeIdentity string, snapshot *iaas.Snapshot) bool {
+	existingSourceVolumeIdentity := snapshotSourceVolumeIdentity(snapshot)
+	if existingSourceVolumeIdentity == "" {
+		return false
+	}
+
+	if resolvedSourceVolumeIdentity != "" {
+		return resolvedSourceVolumeIdentity == existingSourceVolumeIdentity
+	}
+
+	if requestedSourceVolumeID == existingSourceVolumeIdentity {
+		return true
+	}
+
+	if snapshot.SourceVolume != nil && requestedSourceVolumeID == snapshot.SourceVolume.Name {
+		return true
+	}
+
+	return false
 }
 
 func mapToCSISnapshot(snap *iaas.Snapshot) (*csi.Snapshot, error) {

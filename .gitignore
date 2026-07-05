@@ -7,3 +7,9 @@ localdev/
 bin/
 
 .vscode/
+
+test/e2e/.e2e-state
+test/e2e/kubeconfig
+test/e2e/e2e.test
+
+.env
