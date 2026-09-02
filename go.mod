@@ -3,7 +3,7 @@ module github.com/thalassa-cloud/csi-thalassa
 go 1.25.0
 
 require (
-	github.com/container-storage-interface/spec v1.12.0
+	github.com/container-storage-interface/spec v1.13.0
 	github.com/golang/protobuf v1.5.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
