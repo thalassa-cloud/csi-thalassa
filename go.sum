@@ -107,8 +107,8 @@ github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWD
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
-github.com/thalassa-cloud/client-go v0.35.4 h1:dVzfW+Z1wzoWpclbmo4g+STNq18ia7L9tab4fvO6k/g=
-github.com/thalassa-cloud/client-go v0.35.4/go.mod h1:RMXRSvI0u2Ff4qnU0evsZWaCvrmaal+2vOcDC4p+9yM=
+github.com/thalassa-cloud/client-go v0.37.0 h1:ernAJLcZefgkjDiZIP/BgyZl5uIU6II8/Iahcvd0xW4=
+github.com/thalassa-cloud/client-go v0.37.0/go.mod h1:RMXRSvI0u2Ff4qnU0evsZWaCvrmaal+2vOcDC4p+9yM=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
