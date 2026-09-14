@@ -1,6 +1,6 @@
 module github.com/thalassa-cloud/csi-thalassa
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/container-storage-interface/spec v1.13.0
@@ -10,7 +10,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/thalassa-cloud/client-go v0.35.4
 	golang.org/x/sync v0.22.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	k8s.io/apimachinery v0.33.1
