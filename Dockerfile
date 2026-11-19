@@ -14,6 +14,8 @@
 
 FROM alpine:3.24.4
 
+RUN apk upgrade --no-cache
+
 # e2fsprogs-extra is required for resize2fs used for the resize operation
 # blkid: block device identification tool from util-linux
 RUN apk add --no-cache ca-certificates \
