@@ -1,6 +1,6 @@
 module github.com/thalassa-cloud/csi-thalassa
 
-go 1.26.0
+go 1.27.4
 
 require (
 	github.com/container-storage-interface/spec v1.14.0
